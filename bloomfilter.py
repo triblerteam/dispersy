@@ -233,8 +233,10 @@ class BloomFilter(Constructor):
 
     @property
     def bytes(self):
+        #hex should be m_size/4, hex is 16 instead of 8 -> hence half the number of "hexes" in m_size
         hex = '%x' % self._filter
-        return unhexlify('0'*(len(hex)%2) + hex)[::-1]
+        padding = '0'*(self._m_size/4 - len(hex))
+        return unhexlify(padding + hex)[::-1]
 
 if __debug__:
     def _test_behavior():
