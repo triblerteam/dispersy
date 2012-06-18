@@ -39,6 +39,7 @@ of, the name it uses as an internal identifier, and the class that will contain 
 
 import os
 import sys
+import netifaces
 
 from hashlib import sha1
 from itertools import groupby, islice, count
@@ -73,10 +74,6 @@ from requestcache import Cache, RequestCache
 from resolution import PublicResolution, LinearResolution
 from singleton import Singleton
 
-from guessip import get_my_wan_ip
-
-if __debug__:
-    from candidate import Candidate
 
 # the callback identifier for the task that periodically takes a step
 CANDIDATE_WALKER_CALLBACK_ID = "dispersy-candidate-walker"
@@ -395,7 +392,7 @@ class Dispersy(Singleton):
         self._connection_type = u"unknown"
 
         # our LAN and WAN addresses
-        self._lan_address = (get_my_wan_ip() or "0.0.0.0", 0)
+        self._lan_address = (self._guess_lan_address() or "0.0.0.0", 0)
         self._wan_address = ("0.0.0.0", 0)
         self._wan_address_votes = {}
         if __debug__:
@@ -436,6 +433,19 @@ class Dispersy(Singleton):
             self._callback.register(self._stats_detailed_candidates)
             self._callback.register(self._stats_info)
             self._callback.register(self._stats_bandwidth)
+
+    @staticmethod
+    def _guess_lan_address():
+        """
+        Returns the address of the first AF_INET interface it can find.
+        """
+        for interface in netifaces.interfaces():
+            addresses = netifaces.ifaddresses(interface)
+            for option in addresses.get(netifaces.AF_INET, []):
+                if "broadcast" in option and "addr" in option:
+                    if __debug__: dprint("interface ", interface, " address ", option["addr"])
+                    return option["addr"]
+        return None
 
     def _retry_bootstrap_candidates(self):
         """
