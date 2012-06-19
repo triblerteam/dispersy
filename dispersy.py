@@ -442,7 +442,7 @@ class Dispersy(Singleton):
         for interface in netifaces.interfaces():
             addresses = netifaces.ifaddresses(interface)
             for option in addresses.get(netifaces.AF_INET, []):
-                if "broadcast" in option and "addr" in option:
+                if "broadcast" in option and "addr" in option and not option["addr"] == "127.0.0.1":
                     if __debug__: dprint("interface ", interface, " address ", option["addr"])
                     return option["addr"]
         return None
