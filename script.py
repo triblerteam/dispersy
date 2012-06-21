@@ -55,8 +55,10 @@ class ScriptBase(object):
         self._testcases = []
         self._dispersy = Dispersy.get_instance()
         self._dispersy_database = DispersyDatabase.get_instance()
-        self._dispersy.callback.register(self.run)
-        self.add_testcase(self.wait_for_wan_address)
+        # self._dispersy.callback.register(self.run)
+        if self.enable_wait_for_wan_address:
+            self.add_testcase(self.wait_for_wan_address)
+        self.run()
 
     def add_testcase(self, func, args=()):
         assert callable(func)
@@ -87,6 +89,10 @@ class ScriptBase(object):
 
     def run(self):
         raise NotImplementedError("Must implement a generator or use self.add_testcase(...)")
+
+    @property
+    def enable_wait_for_wan_address(self):
+        return True
 
     def wait_for_wan_address(self):
         ec = ec_generate_key(u"low")

@@ -1036,6 +1036,9 @@ class Dispersy(Singleton):
             if __debug__: dprint("got invalid external vote from ", voter, " received ", address[0], ":", address[1])
             return
 
+        if __debug__:
+            debug_previous_connection_type = self._connection_type
+
         # undo previous vote
         self.wan_address_unvote(voter)
 
@@ -1052,33 +1055,37 @@ class Dispersy(Singleton):
             if len(votes) > 1:
                 if __debug__: dprint("not updating WAN address, suspect symmetric NAT")
                 self._connection_type = u"symmetric-NAT"
-                return
 
-            # it is possible that, for some time after the WAN address changes, we will believe
-            # that the connection type is symmetric NAT.  once votes decay we may find that we
-            # are no longer behind a symmetric-NAT
-            if self._connection_type == u"symmetric-NAT":
-                self._connection_type = u"unknown"
+            else:
+                # it is possible that, for some time after the WAN address changes, we will believe
+                # that the connection type is symmetric NAT.  once votes decay we may find that we
+                # are no longer behind a symmetric-NAT
+                if self._connection_type == u"symmetric-NAT":
+                    self._connection_type = u"unknown"
 
-            if __debug__: dprint("update WAN address ", self._wan_address[0], ":", self._wan_address[1], " -> ", address[0], ":", address[1], force=True)
-            self._wan_address = address
+                if __debug__: dprint("update WAN address ", self._wan_address[0], ":", self._wan_address[1], " -> ", address[0], ":", address[1], force=True)
+                self._wan_address = address
 
-            if not self._is_valid_lan_address(self._lan_address, check_my_lan_address=False):
-                if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", self._wan_address[0], ":", self._lan_address[1], force=True)
-                self._lan_address = (self._wan_address[0], self._lan_address[1])
+                if not self._is_valid_lan_address(self._lan_address, check_my_lan_address=False):
+                    if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", self._wan_address[0], ":", self._lan_address[1], force=True)
+                    self._lan_address = (self._wan_address[0], self._lan_address[1])
 
-            # our address may not be a bootstrap address
-            if self._wan_address in self._bootstrap_candidates:
-                del self._bootstrap_candidates[self._wan_address]
+                # our address may not be a bootstrap address
+                if self._wan_address in self._bootstrap_candidates:
+                    del self._bootstrap_candidates[self._wan_address]
 
-            # our address may not be a candidate
-            if self._wan_address in self._candidates:
-                del self._candidates[self._wan_address]
-            for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
-                del self._candidates[sock_addr]
+                # our address may not be a candidate
+                if self._wan_address in self._candidates:
+                    del self._candidates[self._wan_address]
+                for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
+                    del self._candidates[sock_addr]
 
         if self._connection_type == u"unknown" and self._lan_address == self._wan_address:
             self._connection_type = u"public"
+
+        if __debug__:
+            if not debug_previous_connection_type == self._connection_type:
+                dprint("update connection type ", debug_previous_connection_type, "->", self._connection_type, force=True)
 
     def _is_duplicate_sync_message(self, message):
         """
@@ -1125,16 +1132,16 @@ class Dispersy(Singleton):
         community = message.community
         # fetch the duplicate binary packet from the database
         try:
-            packet, undone = self._database.execute(u"SELECT packet, undone FROM sync WHERE community = ? AND member = ? AND global_time = ?",
+            have_packet, undone = self._database.execute(u"SELECT packet, undone FROM sync WHERE community = ? AND member = ? AND global_time = ?",
                                                     (community.database_id, message.authentication.member.database_id, message.distribution.global_time)).next()
         except StopIteration:
             # this message is not a duplicate
             return False
 
         else:
-            packet = str(packet)
-            if packet == message.packet:
-                # exact binary duplicates, do NOT process the message
+            have_packet = str(have_packet)
+            if have_packet == message.packet:
+                # exact binary duplicate, do NOT process the message
                 if __debug__: dprint(message.candidate, " received identical message [", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, " undone" if undone else "", "]")
 
                 if undone:
@@ -1149,11 +1156,11 @@ class Dispersy(Singleton):
 
             else:
                 signature_length = message.authentication.member.signature_length
-                if packet[:signature_length] == message.packet[:signature_length]:
+                if have_packet[:signature_length] == message.packet[:signature_length]:
                     # the message payload is binary unique (only the signature is different)
-                    if __debug__: dprint("received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, "]")
+                    if __debug__: dprint(message.candidate, " received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, "]")
 
-                    if packet < message.packet:
+                    if have_packet < message.packet:
                         # replace our current message with the other one
                         self._database.execute(u"UPDATE sync SET packet = ? WHERE community = ? AND member = ? AND global_time = ?",
                                                (buffer(message.packet), community.database_id, message.authentication.member.database_id, message.distribution.global_time))
@@ -1162,7 +1169,7 @@ class Dispersy(Singleton):
                         # community.update_sync_range(message.meta, [message.distribution.global_time])
 
                 else:
-                    if __debug__: dprint("received message with duplicate community/member/global-time triplet.  possibly malicious behavior", level="warning")
+                    if __debug__: dprint(message.candidate, " received message with duplicate community/member/global-time triplet.  possibly malicious behavior", level="warning")
 
             # this message is a duplicate
             return True
@@ -1364,8 +1371,9 @@ class Dispersy(Singleton):
             assert isinstance(message, Message.Implementation)
             assert isinstance(message.authentication, MultiMemberAuthentication.Implementation)
 
-            key = (message.authentication.member, message.distribution.global_time)
+            key = (message.authentication.member.database_id, message.distribution.global_time)
             if key in unique:
+                if __debug__: dprint("drop ", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, " (in unique)")
                 return DropMessage(message, "already processed message by member^global_time")
 
             else:
@@ -1374,6 +1382,7 @@ class Dispersy(Singleton):
                 members = tuple(sorted(member.database_id for member in message.authentication.members))
                 key = members + (message.distribution.global_time,)
                 if key in unique:
+                    if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (in unique)")
                     return DropMessage(message, "already processed message by members^global_time")
 
                 else:
@@ -1381,6 +1390,7 @@ class Dispersy(Singleton):
 
                     if self._is_duplicate_sync_message(message):
                         # we have the previous message (drop)
+                        if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (_is_duplicate_sync_message)")
                         return DropMessage(message, "duplicate message by member^global_time (4)")
 
                     # # ensure that the community / member / global_time is always unique
@@ -1399,23 +1409,48 @@ class Dispersy(Singleton):
                         # database for all message.meta messages that were signed by
                         # message.authentication.members where the order of signing is not taken
                         # into account.
-                        times[members] = [global_time
-                                          for count_, global_time
-                                          in self._database.execute(u"""
-                                                SELECT COUNT(*), sync.global_time
-                                                FROM sync
-                                                JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-                                                WHERE sync.community = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
-                                                GROUP BY sync.id
-                                                """ % ", ".join("?" for _ in xrange(len(members))),
-                                                                    (message.community.database_id, message.database_id) + members)
-                                          if count_ == message.authentication.count]
+                        times[members] = dict((global_time, (packet_id, str(packet)))
+                                              for count_, packet_id, global_time, packet
+                                              in self._database.execute(u"""
+SELECT COUNT(*), sync.id, sync.global_time, sync.packet
+FROM sync
+JOIN reference_member_sync ON reference_member_sync.sync = sync.id
+WHERE sync.community = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
+GROUP BY sync.id
+""" % ", ".join("?" for _ in xrange(len(members))), (message.community.database_id, message.database_id) + members)
+                                              if count_ == message.authentication.count)
                         assert len(times[members]) <= message.distribution.history_size
                     tim = times[members]
 
-                    if message.distribution.global_time in tim and self._is_duplicate_sync_message(message):
-                        # we have the previous message (drop)
-                        return DropMessage(message, "duplicate message by members^global_time")
+                    if message.distribution.global_time in tim:
+                        packet_id, have_packet = tim[message.distribution.global_time]
+
+                        if message.packet == have_packet:
+                            # exact binary duplicate, do NOT process the message
+                            if __debug__: dprint(message.candidate, " received identical message [", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, "]")
+                            return DropMessage(message, "duplicate message by binary packet (1)")
+
+                        else:
+                            signature_length = sum(member.signature_length for member in message.authentication.members)
+                            member_authentication_begin = 23 # version, version, community-id, message-type
+                            member_authentication_end = member_authentication_begin + 20 * len(message.authentication.members)
+                            if (have_packet[:member_authentication_begin] == message.packet[:member_authentication_begin] and
+                                have_packet[member_authentication_end:signature_length] == message.packet[member_authentication_end:signature_length]):
+                                # the message payload is binary unique (only the member order or signatures are different)
+                                if __debug__: dprint(message.candidate, " received identical message with different member-order or signatures [", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, "]")
+
+                                if have_packet < message.packet:
+                                    # replace our current message with the other one
+                                    self._database.execute(u"UPDATE sync SET member = ?, packet = ? WHERE id = ?",
+                                                           (message.authentication.member.database_id, buffer(message.packet), packet_id))
+
+                                    return DropMessage(message, "replaced existing packet with other packet with the same payload")
+
+                                return DropMessage(message, "not replacing existing packet with other packet with the same payload")
+
+                            else:
+                                if __debug__: dprint(message.candidate, " received message with duplicate community/members/global-time triplet.  possibly malicious behavior", level="warning")
+                                return DropMessage(message, "duplicate message by binary packet (2)")
 
                     elif len(tim) >= message.distribution.history_size and min(tim) > message.distribution.global_time:
                         # we have newer messages (drop)
@@ -1423,36 +1458,18 @@ class Dispersy(Singleton):
                         # if the history_size is one, we can sent that on message back because
                         # apparently the sender does not have this message yet
                         if message.distribution.history_size == 1:
-                            assert len(tim) == 1
-                            packets = [packet
-                                       for count_, packet
-                                       in self._database.execute(u"""
-                                       SELECT COUNT(*), sync.packet
-                                       FROM sync
-                                       JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-                                       WHERE sync.community = ? AND sync.global_time = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
-                                       GROUP BY sync.id
-                                       """ % ", ".join("?" for _ in xrange(len(members))),
-                                                                 (message.community.database_id, tim[0], message.database_id) + members)
-                                       if count_ == message.authentication.count]
+                            packet_id, have_packet = tim.values()[0]
+                            if __debug__:
+                                self._statistics.outgoing(u"-sequence-", len(have_packet), 1)
+                            self._endpoint.send([message.candidate], [have_packet])
 
-                            if packets:
-                                assert len(packets) == 1
-                                if __debug__:
-                                    self._statistics.outgoing(u"-sequence-", sum(len(packet) for packet in packets), len(packets))
-                                self._endpoint.send([message.candidate], [str(packet) for packet in packets])
-
-                            else:
-                                # TODO can still fail when packet is in one of the received messages
-                                # from this batch.
-                                pass
-
+                        if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (older than ", min(tim), ")")
                         return DropMessage(message, "old message by members^global_time")
 
                     else:
                         # we accept this message
-                        if __debug__: dprint("accept ", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time)
-                        tim.append(message.distribution.global_time)
+                        if __debug__: dprint("ACCEPT ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time)
+                        tim[message.distribution.global_time] = (0, message.packet)
                         return message
 
         # meta message
@@ -2444,8 +2461,6 @@ class Dispersy(Singleton):
                     assert isinstance(bloom_filter, BloomFilter), bloom_filter
 
                     # verify that the bloom filter is correct
-                    binary = bloom_filter.bytes
-                    bloom_filter.clear()
                     try:
                         packets = [str(packet) for packet, in self._database.execute(u"SELECT sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone == 0 AND global_time BETWEEN ? AND ? AND (sync.global_time + ?) % ? = 0",
                                                                                      (community.database_id, time_low, community.global_time if time_high == 0 else time_high, offset, modulo))]
@@ -2456,8 +2471,16 @@ class Dispersy(Singleton):
                         dprint("the sqlite3 python module can not handle values 2**63 or larger.  limit time_low and time_high to 2**63-1", exception=True, level="error")
                         assert False
 
+                    # BLOOM_FILTER must have been correctly filled
+                    binary = bloom_filter.bytes
+                    bloom_filter.clear()
                     bloom_filter.add_keys(packets)
-                    assert binary == bloom_filter.bytes, "The returned bloom filter does not match the given range [%d:%d] packets:%d" % (time_low, time_high, len(packets))
+                    assert binary == bloom_filter.bytes, "does not match the given range [%d:%d] packets:%d" % (time_low, time_high, len(packets))
+
+                    # BLOOM_FILTER must be the same after transmission
+                    bloom_filter = BloomFilter(binary, bloom_filter.functions, prefix=bloom_filter.prefix)
+                    assert binary == bloom_filter.bytes, "problem with the long <-> binary conversion"
+                    assert list(bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set after transmission"
 
         if __debug__:
             if destination.get_destination_address(self._wan_address) != destination.sock_addr:
@@ -2728,7 +2751,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                     generator = ((str(packet),) for packet, in self._database.execute(sql, (time_low, long(time_high), long(payload.offset), long(payload.modulo))))
                     for packet, in payload.bloom_filter.not_filter(generator):
-                        if __debug__:dprint("found missing (", len(packet), " bytes) ", sha1(packet).digest().encode("HEX"))
+                        if __debug__:dprint("found missing (", len(packet), " bytes) ", sha1(packet).digest().encode("HEX"), " for ", message.candidate)
 
                         packets.append(packet)
                         byte_limit -= len(packet)

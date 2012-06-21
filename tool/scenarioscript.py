@@ -20,6 +20,10 @@ class ScenarioScript(ScriptBase):
         self._master_member = None
         self._community = None
 
+    @property
+    def enable_wait_for_wan_address(self):
+        return False
+
     def run(self):
         self.add_testcase(self._run_scenario)
 
