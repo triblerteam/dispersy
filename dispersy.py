@@ -3737,7 +3737,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 yield DropMessage(message, "first member may not change")
                 continue
 
-            if not old_submsg.distribution.global_time is new_submsg.distribution.global_time:
+            if not old_submsg.distribution.global_time == new_submsg.distribution.global_time:
                 yield DropMessage(message, "global time may not change")
                 continue
 
