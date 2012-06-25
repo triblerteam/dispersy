@@ -179,13 +179,13 @@ class DebugCommunity(Community):
     # double-signed-text
     #
 
-    def create_double_signed_text(self, text, member, response_func, response_args=(), timeout=10.0, store=True, forward=True):
+    def create_double_signed_text(self, text, member, response_func, response_args=(), timeout=10.0, forward=True):
         meta = self.get_meta_message(u"double-signed-text")
         message = meta.impl(authentication=([self._my_member, member],),
                             distribution=(self.global_time,),
                             destination=(member,),
                             payload=(text,))
-        return self.create_dispersy_signature_request(message, response_func, response_args, timeout, store, forward)
+        return self.create_dispersy_signature_request(message, response_func, response_args, timeout, forward)
 
     def allow_double_signed_text(self, message):
         """
@@ -199,13 +199,13 @@ class DebugCommunity(Community):
     # triple-signed-text
     #
 
-    def create_triple_signed_text(self, text, member1, member2, response_func, response_args=(), timeout=10.0, store=True, forward=True):
+    def create_triple_signed_text(self, text, member1, member2, response_func, response_args=(), timeout=10.0, forward=True):
         meta = self.get_meta_message(u"triple-signed-text")
         message = meta.impl(authentication=([self._my_member, member1, member2],),
                             distribution=(self.global_time,),
                             destination=(member1, member2),
                             payload=(text,))
-        return self.create_dispersy_signature_request(message, response_func, response_args, timeout, store, forward)
+        return self.create_dispersy_signature_request(message, response_func, response_args, timeout, forward)
 
     def allow_triple_signed_text(self, message):
         """
