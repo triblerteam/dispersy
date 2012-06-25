@@ -52,14 +52,14 @@ from bloomfilter import BloomFilter
 from bootstrap import get_bootstrap_candidates
 from callback import Callback
 from candidate import BootstrapCandidate, LoopbackCandidate, WalkCandidate, Candidate
-from destination import CommunityDestination, CandidateDestination, MemberDestination, SubjectiveDestination
+from destination import CommunityDestination, CandidateDestination, MemberDestination
 from dispersydatabase import DispersyDatabase
 from distribution import SyncDistribution, FullSyncDistribution, LastSyncDistribution, DirectDistribution
 from dprint import dprint
 from endpoint import DummyEndpoint
 from member import DummyMember, Member, MemberFromId, MemberWithoutCheck
 from message import BatchConfiguration, Packet, Message
-from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence, DelayMessageBySubjectiveSet
+from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence
 from message import DropPacket, DelayPacket
 from payload import AuthorizePayload, RevokePayload, UndoPayload
 from payload import DestroyCommunityPayload
@@ -69,7 +69,6 @@ from payload import IntroductionRequestPayload, IntroductionResponsePayload, Pun
 from payload import MissingMessagePayload, MissingLastMessagePayload
 from payload import MissingSequencePayload, MissingProofPayload
 from payload import SignatureRequestPayload, SignatureResponsePayload
-from payload import SubjectiveSetPayload, MissingSubjectiveSetPayload
 from requestcache import Cache, RequestCache
 from resolution import PublicResolution, LinearResolution
 from singleton import Singleton
@@ -207,15 +206,6 @@ class MissingSequenceCache(MissingSomethingCache):
     @staticmethod
     def message_to_identifier(message):
         return "-missing-sequence-%s-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.name.encode("UTF-8"), message.distribution.global_time)
-
-class MissingSubjectiveSetCache(MissingSomethingCache):
-    @staticmethod
-    def properties_to_identifier(community, member, cluster):
-        return "-missing-subjective-set-%s-%s-%d-" % (community.cid, member.mid, cluster)
-
-    @staticmethod
-    def message_to_identifier(message):
-        return "-missing-subjective-set-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.payload.cluster)
 
 class Statistics(object):
     def __init__(self):
@@ -621,7 +611,6 @@ class Dispersy(Singleton):
                     Message(community, u"dispersy-undo-own", MemberAuthentication(), PublicResolution(), FullSyncDistribution(enable_sequence_number=True, synchronization_direction=u"ASC", priority=128), CommunityDestination(node_count=10), UndoPayload(), self.check_undo, self.on_undo),
                     Message(community, u"dispersy-undo-other", MemberAuthentication(), LinearResolution(), FullSyncDistribution(enable_sequence_number=True, synchronization_direction=u"ASC", priority=128), CommunityDestination(node_count=10), UndoPayload(), self.check_undo, self.on_undo),
                     Message(community, u"dispersy-destroy-community", MemberAuthentication(), LinearResolution(), FullSyncDistribution(enable_sequence_number=False, synchronization_direction=u"ASC", priority=192), CommunityDestination(node_count=50), DestroyCommunityPayload(), self._generic_timeline_check, self.on_destroy_community),
-                    Message(community, u"dispersy-subjective-set", MemberAuthentication(), PublicResolution(), LastSyncDistribution(synchronization_direction=u"ASC", priority=16, history_size=1), CommunityDestination(node_count=0), SubjectiveSetPayload(), self._generic_timeline_check, self.on_subjective_set),
                     Message(community, u"dispersy-dynamic-settings", MemberAuthentication(), LinearResolution(), FullSyncDistribution(enable_sequence_number=True, synchronization_direction=u"DESC", priority=191), CommunityDestination(node_count=10), DynamicSettingsPayload(), self._generic_timeline_check, community.dispersy_on_dynamic_settings),
 
                     #
@@ -638,9 +627,6 @@ class Dispersy(Singleton):
                     # when we have a reference to a message that we do not have.  a reference consists
                     # of the community identifier, the member identifier, and the global time
                     Message(community, u"dispersy-missing-message", NoAuthentication(), PublicResolution(), DirectDistribution(), CandidateDestination(), MissingMessagePayload(), self._generic_timeline_check, self.on_missing_message),
-
-                    # when we are missing the subjective set, with a specific cluster, from a member
-                    Message(community, u"dispersy-missing-subjective-set", NoAuthentication(), PublicResolution(), DirectDistribution(), CandidateDestination(), MissingSubjectiveSetPayload(), self._generic_timeline_check, self.on_missing_subjective_set),
 
                     # when we might be missing a dispersy-authorize message
                     Message(community, u"dispersy-missing-proof", NoAuthentication(), PublicResolution(), DirectDistribution(), CandidateDestination(), MissingProofPayload(), self._generic_timeline_check, self.on_missing_proof),
@@ -2088,7 +2074,6 @@ GROUP BY sync.id
 
         meta = messages[0].meta
         if __debug__: dprint("attempting to store ", len(messages), " ", meta.name, " messages")
-        is_subjective_destination = isinstance(meta.destination, SubjectiveDestination)
         is_multi_member_authentication = isinstance(meta.authentication, MultiMemberAuthentication)
         highest_global_time = 0
 
@@ -2100,13 +2085,6 @@ GROUP BY sync.id
             assert not message.packet[-10:] == "\x00" * 10, message.packet[-10:].encode("HEX")
             # we must have the identity message as well
             assert message.name == u"dispersy-identity" or message.authentication.member.has_identity(message.community), [message, message.community, message.authentication.member.database_id]
-
-            # we do not store a message when it uses SubjectiveDestination and it is not in our set
-            if is_subjective_destination and not message.destination.is_valid:
-                # however, ignore the SubjectiveDestination when we are forced so store this message
-                if not message.authentication.member.must_store:
-                    if __debug__: dprint("not storing message")
-                    continue
 
             if __debug__: dprint(message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time)
 
@@ -2204,33 +2182,6 @@ GROUP BY sync.id
         assert isinstance(community, Community)
         now = time()
         return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now))
-
-    def yield_subjective_candidates(self, community, cluster):
-        """
-        Yields unique active random candidates that are part of COMMUNITY and who have us in their
-        subjective set CLUSTER.
-        """
-        if __debug__:
-            from community import Community
-        assert isinstance(community, Community)
-        assert isinstance(cluster, int)
-
-        def in_subjective_set(candidate):
-            for member in candidate.members:
-                subjective_set = community.get_subjective_set(member, cluster)
-                # TODO when we do not have a subjective_set from member, we should request it to
-                # ensure that we make a valid decision next time
-                if subjective_set and community.my_member.public_key in subjective_set:
-                    return True
-            return False
-
-        now = time()
-        candidates = [candidate
-                      for candidate
-                      in self._candidates.itervalues()
-                      if candidate.in_community(community, now) and candidate.is_any_active(now) and in_subjective_set(candidate)]
-        shuffle(candidates)
-        return iter(candidates)
 
     def yield_random_candidates(self, community):
         """
@@ -2506,31 +2457,6 @@ GROUP BY sync.id
         We received a dispersy-introduction-request message.
         """
         for message in messages:
-            if messages[0].community.dispersy_subjective_set_enabled:
-                # all currently known sets
-                subjective_sets = message.community.get_subjective_sets(message.authentication.member)
-
-                # find messages that require subjective sets
-                for meta in messages[0].community.get_meta_messages():
-                    if (isinstance(meta.destination, SubjectiveDestination) and
-                        isinstance(meta.distribution, SyncDistribution) and
-                        meta.distribution.priority > 32):
-
-                        # we need the subjective set for this particular cluster
-                        assert meta.destination.cluster in subjective_sets, "subjective_sets must contain all existing clusters, however, some may be None"
-                        if not subjective_sets.get(meta.destination.cluster):
-                            if __debug__: dprint("subjective set not available (not ", meta.destination.cluster, " in ", subjective_sets.keys(), ")")
-                            yield DelayMessageBySubjectiveSet(message, meta.destination.cluster)
-                            has_been_delayed = True
-                            break
-
-                else:
-                    # did not break
-                    has_been_delayed = False
-
-                if has_been_delayed:
-                    continue
-
             # 25/01/12 Boudewijn: during all DAS2 NAT node314 often sends requests to herself.  This
             # results in more candidates (all pointing to herself) being added to the candidate
             # list.  This converges to only sending requests to herself.  To prevent this we will
@@ -2660,111 +2586,45 @@ GROUP BY sync.id
         # obtain all available messages for this community
         syncable_messages = u", ".join(unicode(meta.database_id) for meta in community.get_meta_messages() if isinstance(meta.distribution, SyncDistribution) and meta.distribution.priority > 32)
 
-        if community.dispersy_subjective_set_enabled:
-            sql = u"""SELECT sync.packet, sync.meta_message, member.public_key
-FROM sync
-JOIN member ON member.id = sync.member
-JOIN meta_message ON meta_message.id = sync.meta_message
-WHERE sync.meta_message IN (%s) AND sync.undone = 0 AND sync.global_time BETWEEN ? AND ? AND (sync.global_time + ?) %% ? = 0
-ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""" % syncable_messages
-            meta_messages = dict((meta_message.database_id, meta_message) for meta_message in community.get_meta_messages())
-            if __debug__: dprint(sql)
-
-            for message in messages:
-                payload = message.payload
-
-                if payload.sync:
-                    # obtain all subjective sets for the sender of the dispersy-sync message
-                    assert isinstance(message.authentication, MemberAuthentication.Implementation)
-                    subjective_sets = community.get_subjective_sets(message.authentication.member)
-
-                    # we limit the response by byte_limit bytes
-                    byte_limit = community.dispersy_sync_response_limit
-
-                    time_high = payload.time_high if payload.has_time_high else community.global_time
-                    packets = []
-
-                    # 07/05/12 Boudewijn: for an unknown reason values larger than 2^63-1 cause
-                    # overflow exceptions in the sqlite3 wrapper
-                    time_low = min(payload.time_low, 2**63-1)
-                    time_high = min(time_high, 2**63-1)
-
-                    generator = ((str(packet), meta_message_id, str(packet_public_key)) for packet, meta_message_id, packet_public_key in self._database.execute(sql, (time_low, time_high, payload.offset, payload.modulo)))
-                    for packet, meta_message_id, packet_public_key in payload.bloom_filter.not_filter(generator):
-                        packet_meta = meta_messages.get(meta_message_id, None)
-                        if not packet_meta:
-                            if __debug__: dprint("not syncing missing unknown message (", len(packet), " bytes, id: ", meta_message_id, ")", level="warning")
-                            continue
-
-                        # check if the packet uses the SubjectiveDestination policy
-                        if isinstance(packet_meta.destination, SubjectiveDestination):
-                            packet_cluster = packet_meta.destination.cluster
-
-                            # we need the subjective set for this particular cluster
-                            assert packet_cluster in subjective_sets, "subjective_sets must contain all existing clusters, however, some may be None"
-                            subjective_set = subjective_sets[packet_cluster]
-                            assert subjective_set, "subjective_set must be available (i.e. not None), see check_introduction_request"
-
-                            # is packet_public_key in the subjective set
-                            if not packet_public_key in subjective_set:
-                                if __debug__: dprint("found missing ", packet_meta.name, " not matching requestors subjective set.  not syncing")
-                                continue
-
-                        if __debug__:dprint("found missing ", packet_meta.name, " (", len(packet), " bytes) ", sha1(packet).digest().encode("HEX"))
-
-                        packets.append(packet)
-                        byte_limit -= len(packet)
-                        if byte_limit <= 0:
-                            if __debug__:
-                                dprint("bandwidth throttle")
-                            break
-
-                    if packets:
-                        if __debug__:
-                            dprint("syncing ", len(packets), " packets (", sum(len(packet) for packet in packets), " bytes) over [", time_low, ":", time_high, "] selecting (%", payload.modulo, "+", payload.offset, ") to " , message.candidate)
-                            self._statistics.outgoing(u"-sync-", sum(len(packet) for packet in packets), len(packets))
-                        self._endpoint.send([message.candidate], packets)
-
-        else:
-            sql = u"""SELECT sync.packet
+        sql = u"""SELECT sync.packet
 FROM sync
 JOIN meta_message ON meta_message.id = sync.meta_message
 WHERE sync.meta_message IN (%s) AND sync.undone = 0 AND sync.global_time BETWEEN ? AND ? AND (sync.global_time + ?) %% ? = 0
 ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""" % syncable_messages
-            if __debug__: dprint(sql)
+        if __debug__: dprint(sql)
 
-            for message in messages:
-                payload = message.payload
+        for message in messages:
+            payload = message.payload
 
-                if payload.sync:
-                    # we limit the response by byte_limit bytes
-                    byte_limit = community.dispersy_sync_response_limit
+            if payload.sync:
+                # we limit the response by byte_limit bytes
+                byte_limit = community.dispersy_sync_response_limit
 
-                    time_high = payload.time_high if payload.has_time_high else community.global_time
+                time_high = payload.time_high if payload.has_time_high else community.global_time
 
-                    # 07/05/12 Boudewijn: for an unknown reason values larger than 2^63-1 cause
-                    # overflow exceptions in the sqlite3 wrapper
-                    time_low = min(payload.time_low, 2**63-1)
-                    time_high = min(time_high, 2**63-1)
+                # 07/05/12 Boudewijn: for an unknown reason values larger than 2^63-1 cause
+                # overflow exceptions in the sqlite3 wrapper
+                time_low = min(payload.time_low, 2**63-1)
+                time_high = min(time_high, 2**63-1)
 
-                    packets = []
+                packets = []
 
-                    generator = ((str(packet),) for packet, in self._database.execute(sql, (time_low, long(time_high), long(payload.offset), long(payload.modulo))))
-                    for packet, in payload.bloom_filter.not_filter(generator):
-                        if __debug__:dprint("found missing (", len(packet), " bytes) ", sha1(packet).digest().encode("HEX"), " for ", message.candidate)
+                generator = ((str(packet),) for packet, in self._database.execute(sql, (time_low, long(time_high), long(payload.offset), long(payload.modulo))))
+                for packet, in payload.bloom_filter.not_filter(generator):
+                    if __debug__:dprint("found missing (", len(packet), " bytes) ", sha1(packet).digest().encode("HEX"), " for ", message.candidate)
 
-                        packets.append(packet)
-                        byte_limit -= len(packet)
-                        if byte_limit <= 0:
-                            if __debug__:
-                                dprint("bandwidth throttle")
-                            break
-
-                    if packets:
+                    packets.append(packet)
+                    byte_limit -= len(packet)
+                    if byte_limit <= 0:
                         if __debug__:
-                            dprint("syncing ", len(packets), " packets (", sum(len(packet) for packet in packets), " bytes) over [", time_low, ":", time_high, "] selecting (%", message.payload.modulo, "+", message.payload.offset, ") to " , message.candidate)
-                            self._statistics.outgoing(u"-sync-", sum(len(packet) for packet in packets), len(packets))
-                        self._endpoint.send([message.candidate], packets)
+                            dprint("bandwidth throttle")
+                        break
+
+                if packets:
+                    if __debug__:
+                        dprint("syncing ", len(packets), " packets (", sum(len(packet) for packet in packets), " bytes) over [", time_low, ":", time_high, "] selecting (%", message.payload.modulo, "+", message.payload.offset, ") to " , message.candidate)
+                        self._statistics.outgoing(u"-sync-", sum(len(packet) for packet in packets), len(packets))
+                    self._endpoint.send([message.candidate], packets)
 
     def check_introduction_response(self, messages):
         for message in messages:
@@ -3049,9 +2909,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
          - CommunityDestination causes a message to be sent to one or more addresses to be picked
            from the database candidate table.
 
-         - SubjectiveDestination is currently handled in the same way as CommunityDestination.
-           Obviously this needs to be modified.
-
         @param messages: A sequence with one or more messages.
         @type messages: [Message.Implementation]
         """
@@ -3070,15 +2927,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     # candidates can be found
                     self._statistics.outgoing(meta.name, sum(len(message.packet) for message in messages) * meta.destination.node_count, len(messages) * meta.destination.node_count)
                 return all(self._endpoint.send(list(islice(self.yield_random_candidates(meta.community), meta.destination.node_count)), [message.packet]) for message in messages)
-
-        elif isinstance(meta.destination, SubjectiveDestination):
-            # SubjectiveDestination.node_count is allowed to be zero
-            if meta.destination.node_count > 0:
-                if __debug__:
-                    # note that the statistics is different from the truth when less than NODE_COUNT
-                    # candidates can be found
-                    self._statistics.outgoing(meta.name, sum(len(message.packet) for message in messages) * meta.destination.node_count, len(messages) * meta.destination.node_count)
-                return all(self._endpoint.send(list(islice(self.yield_subjective_candidates(meta.community, meta.destination.cluster), meta.destination.node_count)), [message.packet]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
@@ -3473,90 +3321,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             else:
                 assert not message.payload.mid == message.community.my_member.mid, "we should always have our own dispersy-identity"
                 if __debug__: dprint("could not find any missing members.  no response is sent [", message.payload.mid.encode("HEX"), ", mid:", message.community.my_member.mid.encode("HEX"), ", cid:", message.community.cid.encode("HEX"), "]", level="warning")
-
-    def create_subjective_set(self, community, cluster, members, reset=True, store=True, update=True, forward=True):
-        if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
-        assert isinstance(community, Community)
-        assert isinstance(cluster, int)
-        assert isinstance(members, (tuple, list))
-        assert all(isinstance(member, Member) for member in members)
-        assert isinstance(reset, bool)
-        assert isinstance(store, bool)
-        assert isinstance(update, bool)
-        assert isinstance(forward, bool)
-
-        # modify the subjective set (bloom filter)
-        # 12/10/11 Boudewijn: create_my_subjective_set_on_demand must be False to prevent infinite recursion
-        subjective_set = community.get_subjective_set(community.my_member, cluster, create_my_subjective_set_on_demand=False)
-        if not subjective_set:
-            subjective_set = BloomFilter(community.dispersy_subjective_set_bits, community.dispersy_subjective_set_error_rate)
-        if reset:
-            subjective_set.clear()
-        for member in members:
-            subjective_set.add(member.public_key)
-
-        # implement the message
-        meta = community.get_meta_message(u"dispersy-subjective-set")
-        message = meta.impl(authentication=(community.my_member,),
-                            distribution=(community.claim_global_time(),),
-                            payload=(cluster, subjective_set))
-        self.store_update_forward([message], store, update, forward)
-        return message
-
-    def on_subjective_set(self, messages):
-        for message in messages:
-            message.community.clear_subjective_set_cache(message.authentication.member, message.payload.cluster, message.packet, message.payload.subjective_set)
-
-    def create_missing_subjective_set(self, community, candidate, member, cluster, response_func=None, response_args=(), timeout=10.0):
-        # ensure that the identifier is 'triggered' somewhere, i.e. using
-        # handle_missing_messages(messages, MissingSubjectiveSetCache)
-
-        identifier = MissingSubjectiveSetCache.properties_to_identifier(community, member, cluster)
-        cache = self._request_cache.get(identifier, MissingSubjectiveSetCache)
-        if not cache:
-            if __debug__: dprint(identifier)
-            cache = MissingSubjectiveSetCache(timeout)
-            self._request_cache.set(identifier, cache)
-
-            meta = community.get_meta_message(u"dispersy-missing-subjective-set")
-            request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(cluster, [member]))
-            self._forward([request])
-
-        if response_func:
-            cache.callbacks.append((response_func, response_args))
-
-    def on_missing_subjective_set(self, messages):
-        """
-        We received a dispersy-missing-subjective-set message.
-
-        The dispersy-subjective-set-request message contains a list of Member instance for which the
-        subjective set is requested.  We will search our database any subjective sets that we have.
-
-        If the subjective set for self.my_member is requested and this is not found in the database,
-        a default subjective set will be created.
-
-        @see: create_subjective_set_request
-
-        @param messages: The dispersy-missing-subjective-set messages.
-        @type messages: [Message.Implementation]
-        """
-        community = messages[0].community
-
-        for message in messages:
-            packets = []
-            for member in message.payload.members:
-                cache = community.get_subjective_set_cache(member, message.payload.cluster)
-                if cache:
-                    packets.append(cache.packet)
-
-            if packets:
-                if __debug__:
-                    self._statistics.outgoing(u"-dispersy-subjective-set", sum(len(packet) for packet in packets), len(packets))
-                self._endpoint.send([message.candidate], packets)
-
-        self.handle_missing_messages(messages, MissingSubjectiveSetCache)
 
     def create_signature_request(self, community, message, response_func, response_args=(), timeout=10.0, forward=True):
         """

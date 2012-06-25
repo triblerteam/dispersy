@@ -71,9 +71,6 @@ class DebugNode(Node):
     def create_out_order_text_message(self, text, global_time):
         return self._create_text_message(u"DESC-text", text, global_time)
 
-    # def create_subjective_set_text_message(self, text, global_time):
-    #     return self._create_text_message(u"subjective-set-text", text, global_time, destination=(True,))
-
     def create_protected_full_sync_text_message(self, text, global_time):
         return self._create_text_message(u"protected-full-sync-text", text, global_time)
 
@@ -95,10 +92,9 @@ class DebugCommunityConversion(BinaryConversion):
         self.define_meta_message(chr(8), community.get_meta_message(u"full-sync-text"), self._encode_text, self._decode_text)
         self.define_meta_message(chr(9), community.get_meta_message(u"ASC-text"), self._encode_text, self._decode_text)
         self.define_meta_message(chr(10), community.get_meta_message(u"DESC-text"), self._encode_text, self._decode_text)
-        # self.define_meta_message(chr(12), community.get_meta_message(u"subjective-set-text"), self._encode_text, self._decode_text)
-        self.define_meta_message(chr(13), community.get_meta_message(u"last-1-multimember-text"), self._encode_text, self._decode_text)
-        self.define_meta_message(chr(14), community.get_meta_message(u"protected-full-sync-text"), self._encode_text, self._decode_text)
-        self.define_meta_message(chr(15), community.get_meta_message(u"dynamic-resolution-text"), self._encode_text, self._decode_text)
+        self.define_meta_message(chr(11), community.get_meta_message(u"last-1-multimember-text"), self._encode_text, self._decode_text)
+        self.define_meta_message(chr(12), community.get_meta_message(u"protected-full-sync-text"), self._encode_text, self._decode_text)
+        self.define_meta_message(chr(13), community.get_meta_message(u"dynamic-resolution-text"), self._encode_text, self._decode_text)
 
     def _encode_text(self, message):
         return pack("!B", len(message.payload.text)), message.payload.text
@@ -170,11 +166,6 @@ class DebugCommunity(Community):
                 Message(self, u"protected-full-sync-text", MemberAuthentication(), LinearResolution(), FullSyncDistribution(enable_sequence_number=False, synchronization_direction=u"ASC", priority=128), CommunityDestination(node_count=10), TextPayload(), self.check_text, self.on_text),
                 Message(self, u"dynamic-resolution-text", MemberAuthentication(), DynamicResolution(PublicResolution(), LinearResolution()), FullSyncDistribution(enable_sequence_number=False, synchronization_direction=u"ASC", priority=128), CommunityDestination(node_count=10), TextPayload(), self.check_text, self.on_text, self.undo_text),
                 ]
-
-    # 23/04/12 Boudewijn: subjective sets cause problems as they will require the subjective set
-    # data before the introduction-request is accepted.
-    # Message(self, u"subjective-set-text", MemberAuthentication(), PublicResolution(), FullSyncDistribution(enable_sequence_number=False, synchronization_direction=u"ASC", priority=128), SubjectiveDestination(cluster=1, node_count=10), TextPayload(), self.check_text, self.on_text),
-
 
     def create_full_sync_text(self, text, store=True, update=True, forward=True):
         meta = self.get_meta_message(u"full-sync-text")

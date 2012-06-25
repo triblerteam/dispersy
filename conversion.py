@@ -7,7 +7,7 @@ from random import choice
 from authentication import NoAuthentication, MemberAuthentication, MultiMemberAuthentication
 from bloomfilter import BloomFilter
 from crypto import ec_check_public_bin
-from destination import MemberDestination, CommunityDestination, CandidateDestination, SubjectiveDestination
+from destination import MemberDestination, CommunityDestination, CandidateDestination
 from dispersydatabase import DispersyDatabase
 from distribution import FullSyncDistribution, LastSyncDistribution, DirectDistribution
 from message import DelayPacketByMissingMember, DelayPacketByMissingMessage, DropPacket, Packet, Message
@@ -216,8 +216,8 @@ class BinaryConversion(Conversion):
         define(244, u"dispersy-destroy-community", self._encode_destroy_community, self._decode_destroy_community)
         define(243, u"dispersy-authorize", self._encode_authorize, self._decode_authorize)
         define(242, u"dispersy-revoke", self._encode_revoke, self._decode_revoke)
-        define(241, u"dispersy-subjective-set", self._encode_subjective_set, self._decode_subjective_set)
-        define(240, u"dispersy-missing-subjective-set", self._encode_missing_subjective_set, self._decode_missing_subjective_set)
+        # 241 for obsolete dispersy-subjective-set
+        # 240 for obsolete dispersy-missing-subjective-set
         define(239, u"dispersy-missing-message", self._encode_missing_message, self._decode_missing_message)
         define(238, u"dispersy-undo-own", self._encode_undo_own, self._decode_undo_own)
         define(237, u"dispersy-undo-other", self._encode_undo_other, self._decode_undo_other)
@@ -266,8 +266,7 @@ class BinaryConversion(Conversion):
 
                    CandidateDestination:self._decode_empty_destination,
                    CommunityDestination:self._decode_empty_destination,
-                   MemberDestination:self._decode_empty_destination,
-                   SubjectiveDestination:self._decode_subjective_destination}
+                   MemberDestination:self._decode_empty_destination}
 
         self._decode_message_map[byte] = self.DecodeFunctions(meta, mapping[type(meta.authentication)], mapping[type(meta.resolution)], mapping[type(meta.distribution)], mapping[type(meta.destination)], decode_payload_func)
 
@@ -673,60 +672,6 @@ class BinaryConversion(Conversion):
                         permission_triplets.append((member, message, permission))
 
         return offset, placeholder.meta.payload.Implementation(placeholder.meta.payload, permission_triplets)
-
-    def _encode_subjective_set(self, message):
-        payload = message.payload
-        assert payload.subjective_set.size % 8 == 0
-        assert 0 < payload.subjective_set.functions < 256, "assuming that we choose BITS to ensure the bloom filter will fit in one MTU, it is unlikely that there will be more than 255 functions.  hence we can encode this in one byte"
-        assert len(payload.subjective_set.prefix) == 0, "Should not have a prefix"
-        assert len(payload.subjective_set.bytes) == int(ceil(payload.subjective_set.size / 8))
-        return (self._struct_BBH.pack(payload.cluster, payload.subjective_set.functions, payload.subjective_set.size), payload.subjective_set.bytes)
-
-    def _decode_subjective_set(self, placeholder, offset, data):
-        if len(data) < offset + 4:
-            raise DropPacket("Insufficient packet size")
-
-        cluster, functions, size = self._struct_BBH.unpack_from(data, offset)
-        offset += 4
-        if not 0 < functions:
-            raise DropPacket("Invalid functions value")
-        if not 0 < size:
-            raise DropPacket("Invalid size value")
-        if not size % 8 == 0:
-            raise DropPacket("Invalid size value, must be a multiple of eight")
-        length = int(ceil(size / 8))
-        if not length == len(data) - offset:
-            raise DropPacket("Invalid number of bytes available")
-
-        subjective_set = BloomFilter(data[offset:offset + length], functions)
-        offset += length
-
-        return offset, placeholder.meta.payload.Implementation(placeholder.meta.payload, cluster, subjective_set)
-
-    def _encode_missing_subjective_set(self, message):
-        return (self._struct_B.pack(message.payload.cluster),) + tuple([member.mid for member in message.payload.members])
-
-    def _decode_missing_subjective_set(self, placeholder, offset, data):
-        if len(data) < offset + 21:
-            raise DropPacket("Insufficient packet size")
-
-        cluster, = self._struct_B.unpack_from(data, offset)
-        offset += 1
-
-        # check that the cluster is valid, i.e. that there is a message with a SubjectiveDestination
-        # policy and this cluster value
-        if not cluster in placeholder.meta.community.subjective_set_clusters:
-            raise DropPacket("Invalid subjective-set cluster value")
-
-        members = []
-        while len(data) >= offset + 20:
-            members.extend(member for member in self._community.dispersy.get_members_from_id(data[offset:offset+20]) if member.has_identity(self._community))
-            offset += 20
-
-        if not members:
-            raise DropPacket("Invalid subjective-set-request: no members given")
-
-        return offset, placeholder.meta.payload.Implementation(placeholder.meta.payload, cluster, members)
 
     def _encode_undo_own(self, message):
         return (self._struct_Q.pack(message.payload.global_time),)
@@ -1332,13 +1277,6 @@ class BinaryConversion(Conversion):
 
     def _decode_empty_destination(self, placeholder):
         placeholder.destination = placeholder.meta.destination.Implementation(placeholder.meta.destination)
-
-    def _decode_subjective_destination(self, placeholder):
-        meta = placeholder.meta
-        # we want to know if the sender occurs in our subjective bloom filter
-        subjective_set = self._community.get_subjective_set(self._community.my_member, meta.destination.cluster)
-        assert subjective_set, "We must always have subjective sets for ourself"
-        placeholder.destination = meta.destination.Implementation(meta.destination, placeholder.authentication.member.public_key in subjective_set)
 
     def _decode_message(self, candidate, data, verify, allow_empty_signature):
         """

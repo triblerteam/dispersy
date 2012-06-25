@@ -128,16 +128,6 @@ class DelayMessageBySequence(DelayMessage):
         community = self._delayed.community
         community.dispersy.create_missing_sequence(community, self._delayed.candidate, self._delayed.authentication.member, self._delayed.meta, self._missing_low, self._missing_high, self._process_delayed_message)
 
-class DelayMessageBySubjectiveSet(DelayMessage):
-    def __init__(self, delayed, cluster):
-        assert isinstance(cluster, int)
-        super(DelayMessageBySubjectiveSet, self).__init__(delayed)
-        self._cluster = cluster
-
-    def create_request(self):
-        community = self._delayed.community
-        community.dispersy.create_missing_subjective_set(community, self._delayed.candidate, self._delayed.authentication.member, self._cluster, self._process_delayed_message)
-
 class DropMessage(Exception):
     """
     Raised during Community.on_message.
@@ -514,7 +504,7 @@ class Message(MetaObject):
         from authentication import Authentication, NoAuthentication, MemberAuthentication, MultiMemberAuthentication
         from resolution import Resolution, PublicResolution, LinearResolution, DynamicResolution
         from distribution import Distribution, RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution
-        from destination import Destination, CandidateDestination, MemberDestination, CommunityDestination, SubjectiveDestination
+        from destination import Destination, CandidateDestination, MemberDestination, CommunityDestination
 
         assert isinstance(authentication, Authentication)
         assert isinstance(resolution, Resolution)
@@ -532,22 +522,22 @@ class Message(MetaObject):
         elif isinstance(authentication, MemberAuthentication):
             require(authentication, resolution, (PublicResolution, LinearResolution, DynamicResolution))
             require(authentication, distribution, (RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution))
-            require(authentication, destination, (CandidateDestination, MemberDestination, CommunityDestination, SubjectiveDestination))
+            require(authentication, destination, (CandidateDestination, MemberDestination, CommunityDestination))
         elif isinstance(authentication, MultiMemberAuthentication):
             require(authentication, resolution, (PublicResolution, LinearResolution, DynamicResolution))
             require(authentication, distribution, (RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution))
-            require(authentication, destination, (CandidateDestination, MemberDestination, CommunityDestination, SubjectiveDestination))
+            require(authentication, destination, (CandidateDestination, MemberDestination, CommunityDestination))
         else:
             raise ValueError("%s is not supported" % authentication.__class_.__name__)
 
         if isinstance(resolution, PublicResolution):
             require(resolution, authentication, (NoAuthentication, MemberAuthentication, MultiMemberAuthentication))
             require(resolution, distribution, (RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution))
-            require(resolution, destination, (CandidateDestination, MemberDestination, CommunityDestination, SubjectiveDestination))
+            require(resolution, destination, (CandidateDestination, MemberDestination, CommunityDestination))
         elif isinstance(resolution, LinearResolution):
             require(resolution, authentication, (MemberAuthentication, MultiMemberAuthentication))
             require(resolution, distribution, (RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution))
-            require(resolution, destination, (CandidateDestination, MemberDestination, CommunityDestination, SubjectiveDestination))
+            require(resolution, destination, (CandidateDestination, MemberDestination, CommunityDestination))
         elif isinstance(resolution, DynamicResolution):
             pass
         else:
@@ -564,13 +554,13 @@ class Message(MetaObject):
         elif isinstance(distribution, FullSyncDistribution):
             require(distribution, authentication, (MemberAuthentication, MultiMemberAuthentication))
             require(distribution, resolution, (PublicResolution, LinearResolution, DynamicResolution))
-            require(distribution, destination, (CommunityDestination, SubjectiveDestination))
+            require(distribution, destination, (CommunityDestination,))
             if isinstance(authentication, MultiMemberAuthentication) and distribution.enable_sequence_number:
                 raise ValueError("%s may not be used with %s when sequence numbers are enabled" % (distribution.__class__.__name__, authentication.__class__.__name__))
         elif isinstance(distribution, LastSyncDistribution):
             require(distribution, authentication, (MemberAuthentication, MultiMemberAuthentication))
             require(distribution, resolution, (PublicResolution, LinearResolution, DynamicResolution))
-            require(distribution, destination, (CommunityDestination, SubjectiveDestination))
+            require(distribution, destination, (CommunityDestination,))
         else:
             raise ValueError("%s is not supported" % distribution.__class_.__name__)
 
@@ -586,10 +576,6 @@ class Message(MetaObject):
             require(destination, authentication, (NoAuthentication, MemberAuthentication, MultiMemberAuthentication))
             require(destination, resolution, (PublicResolution, LinearResolution, DynamicResolution))
             require(destination, distribution, (DirectDistribution, FullSyncDistribution, LastSyncDistribution))
-        elif isinstance(destination, SubjectiveDestination):
-            require(destination, authentication, (MemberAuthentication, MultiMemberAuthentication))
-            require(destination, resolution, (PublicResolution, LinearResolution, DynamicResolution))
-            require(destination, distribution, (FullSyncDistribution, LastSyncDistribution))
         else:
             raise ValueError("%s is not supported" % destination.__class_.__name__)
 
