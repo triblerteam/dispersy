@@ -2,7 +2,7 @@
 
 DISPERSY=$1
 if [ ! -f "$DISPERSY/tool/main.py" ]; then
-    echo "usage: $0 trunk"
+    echo "usage: $0 dispersy_trunk"
     exit 1
 fi
 
