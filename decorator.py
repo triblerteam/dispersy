@@ -4,6 +4,10 @@ if __debug__:
     from time import time, sleep
     from dprint import dprint
 
+    # update version information directly from SVN
+from revision import update_revision_information
+update_revision_information("$HeadURL$", "$Revision$")
+
 class Constructor(object):
     """
     Allow a class to have multiple constructors.  The right one will
@@ -100,8 +104,9 @@ def attach_profiler(func):
         finally:
             dprint("profiler results [", filename, "]", level="warning")
             profiler.dump_stats(filename)
-
-    if "--profiler" in sys.argv:
+    
+    #Niels 21-06-2012: argv seems to be missing if python is not started as a script
+    if getattr(sys, 'argv', False) and "--profiler" in sys.argv:
         from dprint import dprint
         from cProfile import Profile
         from thread import get_ident

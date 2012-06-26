@@ -7,12 +7,17 @@ import socket
 import sys
 import threading
 from time import time
+from itertools import product
 
 from candidate import Candidate
+from revision import update_revision_information
 from traceback import print_exc
 
 if __debug__:
     from dprint import dprint
+
+# update version information directly from SVN
+update_revision_information("$HeadURL$", "$Revision$")
 
 if sys.platform == 'win32':
     SOCKET_BLOCK_ERRORCODE = 10035    # WSAEWOULDBLOCK
@@ -223,12 +228,22 @@ class RawserverEndpoint(Endpoint):
         wan_address = self._dispersy.wan_address
 
         with self._sendqueue_lock:
-            for candidate in candidates:
-                sock_addr = candidate.get_destination_address(wan_address)
-                assert self._dispersy.is_valid_remote_address(sock_addr)
+            batch = [(candidate.get_destination_address(wan_address), TUNNEL_PREFIX + data if candidate.tunnel else data)
+                     for candidate, data
+                     in product(candidates, packets)]
 
-                for data in packets:
-                    if __debug__:
+            if self._sendqueue:
+                self._sendqueue.extend(batch)
+
+            elif len(batch) > 50:
+                self._sendqueue.extend(batch)
+                # print >> sys.stderr, "endpoint: throttling", len(self._sendqueue), "(first schedule)"
+                self._rawserver.add_task(self._process_sendqueue)
+
+            else:
+                for index, (sock_addr, data) in enumerate(batch):
+                    try:
+                        self._socket.sendto(data, sock_addr)
                         if DEBUG:
                             try:
                                 name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
@@ -236,40 +251,42 @@ class RawserverEndpoint(Endpoint):
                                 name = "???"
                             print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
 
-                    if candidate.tunnel:
-                        data = TUNNEL_PREFIX + data
-
-                    if self._sendqueue:
-                        self._sendqueue.append((data, sock_addr))
-
-                    else:
-                        try:
-                            self._socket.sendto(data, sock_addr)
-                        except socket.error, e:
-                            if e[0] == SOCKET_BLOCK_ERRORCODE:
-                                self._sendqueue.append((data, sock_addr))
-                                print >> sys.stderr, time(), "sendqueue overflowing", len(self._sendqueue), "(first schedule)"
-                                self._rawserver.add_task(self._process_sendqueue, 0.1)
+                    except socket.error, e:
+                        if e[0] == SOCKET_BLOCK_ERRORCODE:
+                            self._sendqueue.extend(batch[index:])
+                            # print >> sys.stderr, "endpoint: overflowing", len(self._sendqueue), "(first schedule)"
+                            self._rawserver.add_task(self._process_sendqueue, 0.1)
+                            break
 
             # return True when something has been send
             return candidates and packets
 
     def _process_sendqueue(self):
-        print >> sys.stderr, time(), "sendqueue overflowing", len(self._sendqueue)
-
         with self._sendqueue_lock:
-            while self._sendqueue:
-                data, sock_addr = self._sendqueue.pop(0)
+            assert self._sendqueue
+            index = -1
+            NUM_PACKETS = max(50, len(self._sendqueue) / 10)
+
+            for index, (sock_addr, data) in enumerate(self._sendqueue[:NUM_PACKETS]):
                 try:
                     self._socket.sendto(data, sock_addr)
+                    if DEBUG:
+                        try:
+                            name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
+                        except:
+                            name = "???"
+                        print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
 
                 except socket.error, e:
                     if e[0] == SOCKET_BLOCK_ERRORCODE:
-                        self._sendqueue.insert(0, (data, sock_addr))
-                        self._rawserver.add_task(self._process_sendqueue, 0.1)
                         break
                     else:
                         print_exc()
+
+            self._sendqueue = self._sendqueue[index+1:]
+            if self._sendqueue:
+                self._rawserver.add_task(self._process_sendqueue, 0.1)
+                # print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):

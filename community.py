@@ -24,10 +24,14 @@ from distribution import SyncDistribution
 from math import ceil
 from member import DummyMember, Member
 from resolution import PublicResolution, LinearResolution, DynamicResolution
+from revision import update_revision_information
 from timeline import Timeline
 
 if __debug__:
     from dprint import dprint
+
+# update version information directly from SVN
+update_revision_information("$HeadURL$", "$Revision$")
 
 class Community(object):
     @classmethod
@@ -532,8 +536,9 @@ class Community(object):
 
         bloom.add_keys(str(packet) for packet, in self._dispersy.database.execute(u"SELECT sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND meta_message.priority > 32 AND NOT sync.undone AND global_time BETWEEN ? AND ?", (self._database_id, time_low, db_high)))
 
-        import sys
-        print >> sys.stderr, "Syncing %d-%d, capacity = %d, pivot = %d"%(time_low, time_high, capacity, time_low)
+        if __debug__:
+            import sys
+            print >> sys.stderr, "Syncing %d-%d, capacity = %d, pivot = %d"%(time_low, time_high, capacity, time_low)
         return (time_low, time_high, 1, 0, bloom)
 
     #choose a pivot, add all items capacity to the right. If too small, add items left of pivot
@@ -546,7 +551,7 @@ class Community(object):
         lambd = 1.0 / desired_mean
         from_gbtime = self.global_time - int(self._random.expovariate(lambd))
         if from_gbtime < 1:
-            from_gbtime = 1
+            from_gbtime = int(self._random.random() * self.global_time)
 
         import sys
         #print >> sys.stderr, "Pivot", from_gbtime
@@ -600,7 +605,7 @@ class Community(object):
         lambd = 1.0 / desired_mean
         from_gbtime = self.global_time - int(self._random.expovariate(lambd))
         if from_gbtime < 1:
-            from_gbtime = 1
+            from_gbtime = int(self._random.random() * self.global_time)
 
         # import sys
         #print >> sys.stderr, "Pivot", from_gbtime
@@ -678,7 +683,7 @@ class Community(object):
             lambd = 1.0 / desired_mean
             from_gbtime = self.global_time - int(self._random.expovariate(lambd))
             if from_gbtime < 1:
-                from_gbtime = 1
+                from_gbtime = int(self._random.random() * self.global_time)
 
             if from_gbtime > 1 and self._nrsyncpackets >= capacity:
                 #use from_gbtime -1/+1 to include from_gbtime
@@ -739,14 +744,8 @@ class Community(object):
     #instead of pivot + capacity, compare pivot - capacity and pivot + capacity to see which globaltime range is largest
     @runtime_duration_warning(0.5)
     def dispersy_claim_sync_bloom_filter_modulo(self):
-        if __debug__:
-            t1 = time()
-
         syncable_messages = u", ".join(unicode(meta.database_id) for meta in self._meta_messages.itervalues() if isinstance(meta.distribution, SyncDistribution) and meta.distribution.priority > 32)
         if syncable_messages:
-            if __debug__:
-                t2 = time()
-
             bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
             capacity = bloom.get_capacity(self.dispersy_sync_bloom_filter_error_rate)
 
@@ -757,7 +756,7 @@ class Community(object):
             else:
                 offset = 0
                 modulo = 1
-            
+
             packets = list(str(packet) for packet, in self._dispersy.database.execute(u"SELECT sync.packet FROM sync WHERE meta_message IN (%s) AND sync.undone = 0 AND sync.global_time > 0 AND (sync.global_time + ?) %% ? = 0" % syncable_messages, (offset, modulo)))
             bloom.add_keys(packets)
 

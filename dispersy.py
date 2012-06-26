@@ -71,8 +71,11 @@ from payload import MissingSequencePayload, MissingProofPayload
 from payload import SignatureRequestPayload, SignatureResponsePayload
 from requestcache import Cache, RequestCache
 from resolution import PublicResolution, LinearResolution
+from revision import update_revision_information, get_revision_information
 from singleton import Singleton
 
+# update version information directly from SVN
+update_revision_information("$HeadURL$", "$Revision$")
 
 # the callback identifier for the task that periodically takes a step
 CANDIDATE_WALKER_CALLBACK_ID = "dispersy-candidate-walker"
@@ -1065,6 +1068,8 @@ class Dispersy(Singleton):
                     del self._candidates[self._wan_address]
                 for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
                     del self._candidates[sock_addr]
+            for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
+                del self._candidates[sock_addr]
 
         if self._connection_type == u"unknown" and self._lan_address == self._wan_address:
             self._connection_type = u"public"
@@ -2316,8 +2321,8 @@ GROUP BY sync.id
             if __debug__:
                 if lan_address != sock_addr:
                     dprint("estimate a different LAN address ", lan_address[0], ":", lan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
-            assert self._is_valid_lan_address(sock_addr), sock_addr
-            assert self._is_valid_wan_address(wan_address), wan_address
+            assert self._is_valid_lan_address(sock_addr), [self.lan_address, sock_addr]
+            assert self._is_valid_wan_address(wan_address), [self.wan_address, wan_address]
             return sock_addr, wan_address
 
         elif self._is_valid_wan_address(sock_addr):
@@ -2325,19 +2330,19 @@ GROUP BY sync.id
             if __debug__:
                 if wan_address != sock_addr:
                     dprint("estimate a different WAN address ", wan_address[0], ":", wan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
-            assert self._is_valid_lan_address(lan_address), lan_address
-            assert self._is_valid_wan_address(sock_addr), sock_addr
+            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
+            assert self._is_valid_wan_address(sock_addr), [self.wan_address, sock_addr]
             return lan_address, sock_addr
 
         elif self._is_valid_wan_address(wan_address):
             # we have a different WAN address and the sock address is not WAN, we are probably on the same computer
-            assert self._is_valid_lan_address(lan_address), lan_address
-            assert self._is_valid_wan_address(wan_address), wan_address
+            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
+            assert self._is_valid_wan_address(wan_address), [self.wan_address, wan_address]
             return lan_address, wan_address
 
         else:
             # we are unable to determine the WAN address, we are probably behind the same NAT
-            assert self._is_valid_lan_address(lan_address), lan_address
+            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
             return lan_address, ("0.0.0.0", 0)
 
     def take_step(self, community):
@@ -4642,6 +4647,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # 3.3: added info["walk_fail"] in __debug__ mode
         # 3.4: added info["walk_reset"]
         # 3.4: added info["attachment"] in __debug__ mode
+        # 3.5: added info["revision"]
 
         now = time()
         info = {"version":3.4,
@@ -4652,7 +4658,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 "database_version":self._database.database_version,
                 "connection_type":self._connection_type,
                 "total_up":self._endpoint.total_up,
-                "total_down":self._endpoint.total_down}
+                "total_down":self._endpoint.total_down,
+                "revision":get_revision_information()}
 
         if statistics:
             info.update(self._statistics.info())
