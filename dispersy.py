@@ -1753,7 +1753,9 @@ GROUP BY sync.id
         sort_key = lambda tup: (tup[0].batch.priority, tup[0]) # meta, address, packet, conversion
         groupby_key = lambda tup: tup[0] # meta, address, packet, conversion
         for meta, iterator in groupby(sorted(self._convert_packets_into_batch(packets), key=sort_key), key=groupby_key):
-            batch = [(candidate, packet, conversion) for _, candidate, packet, conversion in iterator]
+            batch = [(self._candidates.get(candidate.sock_addr) or self._bootstrap_candidates.get(candidate.sock_addr) or candidate, packet, conversion)
+                     for _, candidate, packet, conversion
+                     in iterator]
 
             # schedule batch processing (taking into account the message priority)
             if meta.batch.enabled and cache:
