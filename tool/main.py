@@ -19,8 +19,8 @@ def start_script(opt):
     try:
         module, class_ = opt.script.strip().rsplit(".", 1)
         cls = getattr(__import__(module, fromlist=[class_]), class_)
-    except:
-        raise SystemExit("Invalid --script", opt.script)
+    except Exception as exception:
+        raise SystemExit(str(exception), "Invalid --script", opt.script)
 
     try:
         kargs = {}
