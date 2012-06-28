@@ -2496,7 +2496,7 @@ GROUP BY sync.id
 
             if (message.payload.connection_type == u"symmetric-NAT" and
                 introduced.connection_type == u"symmetric-NAT" and
-                not message.payload.source_lan_address[0] == introduced.lan_address[0]):
+                not candidate.wan_address[0] == introduced.wan_address[0]):
                 # must not introduce two nodes that are behind the same symmetric NAT
                 return False
 
