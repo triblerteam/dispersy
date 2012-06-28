@@ -19,7 +19,6 @@ import inspect
 import socket
 
 # from lencoder import log
-from bloomfilter import BloomFilter
 from candidate import BootstrapCandidate
 from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from debug import Node
