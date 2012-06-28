@@ -257,8 +257,9 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
+        self._dispersy._statistics.reset()
+        
         scenario_fp = open('data/bartercast.log')
-
         try:
             availability_fp = open('data/availability.log')
         except:
