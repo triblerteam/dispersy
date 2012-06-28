@@ -265,6 +265,8 @@ class ScenarioScriptBase(ScriptBase):
             availability_fp = None
 
         self._stepcount = 1
+        prev_total_received = {}
+        prev_total_dropped = {}
 
         # start the scenario
         while True:
@@ -290,24 +292,35 @@ class ScenarioScriptBase(ScriptBase):
                 # offline
                 if availability_cmds != -1 and 'stop' in availability_cmds:
                     self.set_offline()
-
+                
             #print statistics
             total_dropped = sum([amount for amount, bytes in self._dispersy._statistics._drop.itervalues()])
-            log("dispersy.log", "statistics", total_send = self._dispersy.endpoint.total_up, total_received = self._dispersy.endpoint.total_down, total_dropped = total_dropped)
+            log("dispersy.log", "statistics", total_send = self._dispersy.endpoint.total_up, total_received = self._dispersy.endpoint.total_down, total_dropped = total_dropped, walk_attempt = self._dispersy._statistics._walk_attempt, walk_success = self._dispersy._statistics._walk_success, conn_type = self._dispersy._connection_type)
 
             total_received = {}
+            didChange = False
             for key, values in self._dispersy._statistics._success.iteritems():
-                total_received[make_valid_key(key)] = values[0]
+                key = make_valid_key(key)
+                total_received[key] = values[0]
+                if prev_total_received.get(key, None) != values[0]:
+                    didChange = True
 
-            if len(total_received) > 0:
+            if didChange:
                 log("dispersy.log", "statistics-successful-messages", **total_received)
+                prev_total_received = total_received
 
             total_dropped = {}
+            didChange = False
             for key, values in self._dispersy._statistics._drop.iteritems():
-                total_dropped[make_valid_key(key)] = values[0]
+                key = make_valid_key(key)
+                total_dropped[key] = values[0]
+                
+                if prev_total_dropped.get(key, None) != values[0]:
+                    didChange = True
 
-            if len(total_dropped) > 0:
+            if didChange:
                 log("dispersy.log", "statistics-dropped-messages", **total_dropped)
+                prev_total_dropped = total_dropped
 
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
