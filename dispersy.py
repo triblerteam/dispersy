@@ -1514,11 +1514,8 @@ GROUP BY sync.id
         # direct messages tell us what other people believe is the current global_time
         community = messages[0].community
         for message in messages:
-            assert isinstance(message.candidate, Candidate)
-            assert not isinstance(message.candidate, WalkCandidate)
-            candidate = self.get_candidate(message.candidate.sock_addr)
-            if candidate:
-                candidate.set_global_time(community, message.distribution.global_time)
+            if isinstance(message.candidate, WalkCandidate):
+                message.candidate.set_global_time(community, message.distribution.global_time)
 
         return messages
 
@@ -2524,10 +2521,10 @@ GROUP BY sync.id
                 if __debug__: dprint("problems determining source LAN or WAN address, can neither introduce nor convert candidate to WalkCandidate")
                 continue
 
-            # get or create WalkCandidate from Candidate
-            assert isinstance(message.candidate, Candidate)
-            assert not isinstance(message.candidate, WalkCandidate)
-            candidate = self.get_candidate(message.candidate.sock_addr) or self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
+            if isinstance(message.candidate, WalkCandidate):
+                candidate = message.candidate
+            else:
+                candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
 
             # apply vote to determine our WAN address
             self.wan_address_vote(payload.destination_address, candidate)
@@ -2681,14 +2678,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             # modify either the senders LAN or WAN address based on how we perceive that node
             source_lan_address, source_wan_address = self._estimate_lan_and_wan_addresses(message.candidate.sock_addr, payload.source_lan_address, payload.source_wan_address)
 
-            # get or create WalkCandidate from Candidate
-            assert isinstance(message.candidate, Candidate)
-            assert not isinstance(message.candidate, WalkCandidate)
-            candidate = self.get_candidate(message.candidate.sock_addr)
-            if candidate is None:
-                candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
-            else:
+            if isinstance(message.candidate, WalkCandidate):
+                candidate = message.candidate
                 candidate.update(candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
+            else:
+                candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
 
             # until we implement a proper 3-way handshake we are going to assume that the creator of
             # this message is associated to this candidate

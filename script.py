@@ -116,6 +116,10 @@ class ScenarioScriptBase(ScriptBase):
         self._starting_timestamp = float(kargs.get('starting_timestamp', time()))
         self._logfile = logfile
 
+    @property
+    def enable_wait_for_wan_address(self):
+        return False
+
     def find_peer_by_name(self, peername):
         assert_(isinstance(peername, str))
         if not peername in self._members:
@@ -138,8 +142,8 @@ class ScenarioScriptBase(ScriptBase):
         and receive messages.
         """
         log(self._logfile, "Going online")
-        self._dispersy.on_socket_endpoint = self.original_on_socket_endpoint
-        self._dispersy._send = self.original_send
+        self._dispersy.on_incoming_packets = self.original_on_incoming_packets
+        self._dispersy.endpoint.send = self.original_send
 
     def set_offline(self):
         """ Replace on_socket_endpoint and _sends functions of
@@ -162,24 +166,25 @@ class ScenarioScriptBase(ScriptBase):
         without commands to return, then I return -1.
         """
         commands = []
-        while True:
-            cursor_position = fp.tell()
-            line = fp.readline().strip()
-            if not line:
-                if commands: return commands
-                else: return -1
+        if fp:
+            while True:
+                cursor_position = fp.tell()
+                line = fp.readline().strip()
+                if not line:
+                    if commands: return commands
+                    else: return -1
 
-            cmdstep, command = line.split(' ', 1)
+                cmdstep, command = line.split(' ', 1)
 
-            cmdstep = int(cmdstep)
-            if cmdstep < step:
-                continue
-            elif cmdstep == step:
-                commands.append(command)
-            else:
-                # restore cursor position and break
-                fp.seek(cursor_position)
-                break
+                cmdstep = int(cmdstep)
+                if cmdstep < step:
+                    continue
+                elif cmdstep == step:
+                    commands.append(command)
+                else:
+                    # restore cursor position and break
+                    fp.seek(cursor_position)
+                    break
 
         return commands
 
@@ -194,7 +199,8 @@ class ScenarioScriptBase(ScriptBase):
         return delay
 
     def log_desync(self, desync):
-        delay = 1.0 - desync
+        # delay = 1.0 - desync
+        delay = None
         log(self._logfile, "sleep", desync=desync, diff=delay, stepcount=self._stepcount)
 
     def join_community(self, my_member):
@@ -204,6 +210,11 @@ class ScenarioScriptBase(ScriptBase):
         pass
 
     def run(self):
+        dprint("foo", force=1)
+        self.add_testcase(self._run)
+
+    def _run(self):
+        dprint("bar", force=1)
         if __debug__: log(self._logfile, "start-scenario-script")
 
         #
@@ -221,8 +232,8 @@ class ScenarioScriptBase(ScriptBase):
         my_member = Member(ec_to_public_bin(ec), ec_to_private_bin(ec))
         dprint("-my member- ", my_member.database_id, " ", id(my_member), " ", my_member.mid.encode("HEX"), force=1)
 
-        self.original_on_socket_endpoint = self._dispersy.on_socket_endpoint
-        self.original_send = self._dispersy._send
+        self.original_on_incoming_packets = self._dispersy.on_incoming_packets
+        self.original_send = self._dispersy.endpoint.send
 
         # join the community with the newly created member
         self._community = self.join_community(my_member)
@@ -247,7 +258,11 @@ class ScenarioScriptBase(ScriptBase):
 
     def do_steps(self):
         scenario_fp = open('data/bartercast.log')
-        availability_fp = open('data/availability.log')
+
+        try:
+            availability_fp = open('data/availability.log')
+        except:
+            availability_fp = None
 
         self._stepcount = 1
 
@@ -278,7 +293,7 @@ class ScenarioScriptBase(ScriptBase):
 
             #print statistics
             total_dropped = sum([amount for amount, bytes in self._dispersy._statistics._drop.itervalues()])
-            log("dispersy.log", "statistics", total_send = self._dispersy._statistics._total_up, total_received = self._dispersy._statistics._total_down, total_dropped = total_dropped)
+            log("dispersy.log", "statistics", total_send = self._dispersy.endpoint.total_up, total_received = self._dispersy.endpoint.total_down, total_dropped = total_dropped)
 
             total_received = {}
             for key, values in self._dispersy._statistics._success.iteritems():
