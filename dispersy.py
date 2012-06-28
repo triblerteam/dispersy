@@ -1037,7 +1037,7 @@ class Dispersy(Singleton):
             votes[address] = set()
         votes[address].add(voter.sock_addr)
 
-        if __debug__: dprint(["%5d %15s:%-d [%s]" % (len(voters), vote[0], vote[1], ", ".join("%s:%d" % key for key in voters)) for vote, voters in votes.iteritems()], lines=True)
+        if __debug__: dprint(["%5d %15s:%-d [%s]" % (len(voters), vote[0], vote[1], ", ".join("%s:%d" % key for key in voters)) for vote, voters in votes.iteritems()], lines=True, force=1)
 
         # change when new vote count equal or higher than old address vote count
         if self._wan_address != address and len(votes[address]) >= len(votes.get(self._wan_address, ())):
@@ -2476,7 +2476,7 @@ GROUP BY sync.id
             yield message
 
     def on_introduction_request(self, messages):
-        def is_valid_candidate(message, introduced):
+        def is_valid_candidate(message, candidate, introduced):
             assert isinstance(introduced, WalkCandidate)
             assert self._is_valid_lan_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
             assert self._is_valid_wan_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
@@ -2485,7 +2485,12 @@ GROUP BY sync.id
             # if not isinstance(candidate, WalkCandidate):
             #     return False
 
-            if message.candidate.sock_addr == introduced.wan_address:
+            if candidate.wan_address[0] == introduced.wan_address[0]:
+                if candidate.sock_addr == introduced.lan_address:
+                    # must not introduce someone to herself (inside same LAN)
+                    return False
+
+            elif candidate.sock_addr == introduced.wan_address:
                 # must not introduce someone to herself
                 return False
 
@@ -2542,7 +2547,7 @@ GROUP BY sync.id
 
             if payload.advice:
                 for introduced in random_candidate_iterator:
-                    if is_valid_candidate(message, introduced):
+                    if is_valid_candidate(message, candidate, introduced):
                         # found candidate, break
                         break
 
@@ -2552,7 +2557,7 @@ GROUP BY sync.id
                 else:
                     # did not break, no candidate found in iterator.  try the stack
                     for index, introduced in enumerate(random_candidate_stack):
-                        if is_valid_candidate(message, introduced):
+                        if is_valid_candidate(message, candidate, introduced):
                             # found candidate, break
                             del random_candidate_stack[index]
                             break
@@ -2641,7 +2646,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             # check introduced LAN address, if given
             if not message.payload.lan_introduction_address == ("0.0.0.0", 0):
                 if not self._is_valid_lan_address(message.payload.lan_introduction_address):
-                    yield DropMessage(message, "invalid LAN introduction address [_is_valid_lan_address]")
+                    yield DropMessage(message, "invalid LAN introduction address [_is_valid_lan_address] %s -- %s" % (str(self._lan_address), str(message.payload.lan_introduction_address)))
                     continue
 
                 if message.payload.lan_introduction_address == message.candidate.sock_addr:
