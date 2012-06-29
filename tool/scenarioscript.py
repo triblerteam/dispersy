@@ -93,29 +93,22 @@ class ScenarioScript(ScriptBase):
         pass
 
     def _periodically_log_cpu_statistics(self):
-        user, system = self._process.get_cpu_times()
-        percent = self._process.get_cpu_percent(interval=0)
         while True:
-            user_previous, system_previous = user, system
             user, system = self._process.get_cpu_times()
             percent = self._process.get_cpu_percent(interval=0)
-            self.log("scenario-cpu", user_delta=user-user_previous, system_diff=system-system_previous, user=user, system=system, percentage=percent)
+            self.log("scenario-cpu", user=user, system=system, percentage=percent)
             yield self.enable_cpu_statistics
 
     def _periodically_log_memory_statistics(self):
-        rss, vms = self._process.get_memory_info()
         while True:
-            rss_previous, vms_previous = rss, vms
             rss, vms = self._process.get_memory_info()
-            self.log("scenario-memory", rss_delta=rss-rss_previous, vms_delta=vms-vms_previous, rss=rss, vms=vms)
+            self.log("scenario-memory", rss=rss, vms=vms)
             yield self.enable_memory_statistics
 
     def _periodically_log_bandwidth_statistics(self):
-        up, down = self._dispersy.endpoint.total_up, self._dispersy.endpoint.total_down
         while True:
-            up_previous, down_previous = up, down
             up, down = self._dispersy.endpoint.total_up, self._dispersy.endpoint.total_down
-            self.log("scenario-bandwidth", up_delta=up-up_previous, down_diff=down-down_previous, up=up, down=down)
+            self.log("scenario-bandwidth", up=up, down=down)
             yield self.enable_bandwidth_statistics
 
     def parse_scenario(self):
