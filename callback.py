@@ -610,7 +610,7 @@ class Callback(object):
                             dprint(round(debug_call_duration, 2), "s call to ", self._debug_call_name, level="warning")
 
         except (SystemExit, KeyboardInterrupt, GeneratorExit, AssertionError), exception:
-            dprint("attempting to properly shutdown", exception=True, level="error")
+            dprint("attempting proper shutdown", exception=True, level="error")
             with lock:
                 self._state = "STATE_EXCEPTION"
                 self._exception = exception
