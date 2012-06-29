@@ -4,10 +4,12 @@ except ImportError:
     poisson = expon = None
     print "Unable to import scipy.  ScenarioPoisson and ScenarioExpon are disabled"
 
+from os import getpid
+from psutil import Process
 from random import random, uniform
 from re import compile as re_compile
-from time import time
 from sys import maxsize
+from time import time
 
 from ..crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from ..dprint import dprint
@@ -19,10 +21,32 @@ class ScenarioScript(ScriptBase):
         super(ScenarioScript, self).__init__(*args, **kargs)
         self._master_member = None
         self._community = None
+        self._process = Process(getpid()) if self.enable_cpu_statistics or self.enable_memory_statistics else None
+
+        if self.enable_cpu_statistics:
+            self._dispersy.callback.register(self._periodically_log_cpu_statistics)
+
+        if self.enable_memory_statistics:
+            self._dispersy.callback.register(self._periodically_log_memory_statistics)
+
+        if self.enable_bandwidth_statistics:
+            self._dispersy.callback.register(self._periodically_log_bandwidth_statistics)
 
     @property
     def enable_wait_for_wan_address(self):
         return False
+
+    @property
+    def enable_cpu_statistics(self):
+        return 5.0
+
+    @property
+    def enable_memory_statistics(self):
+        return 5.0
+
+    @property
+    def enable_bandwidth_statistics(self):
+        return 5.0
 
     def run(self):
         self.add_testcase(self._run_scenario)
@@ -67,6 +91,32 @@ class ScenarioScript(ScriptBase):
 
     def log(self, _message, **kargs):
         pass
+
+    def _periodically_log_cpu_statistics(self):
+        user, system = self._process.get_cpu_times()
+        percent = self._process.get_cpu_percent(interval=0)
+        while True:
+            user_previous, system_previous = user, system
+            user, system = self._process.get_cpu_times()
+            percent = self._process.get_cpu_percent(interval=0)
+            self.log("scenario-cpu", user_delta=user-user_previous, system_diff=system-system_previous, user=user, system=system, percentage=percent)
+            yield self.enable_cpu_statistics
+
+    def _periodically_log_memory_statistics(self):
+        rss, vms = self._process.get_memory_info()
+        while True:
+            rss_previous, vms_previous = rss, vms
+            rss, vms = self._process.get_memory_info()
+            self.log("scenario-memory", rss_delta=rss-rss_previous, vms_delta=vms-vms_previous, rss=rss, vms=vms)
+            yield self.enable_memory_statistics
+
+    def _periodically_log_bandwidth_statistics(self):
+        up, down = self._dispersy.endpoint.total_up, self._dispersy.endpoint.total_down
+        while True:
+            up_previous, down_previous = up, down
+            up, down = self._dispersy.endpoint.total_up, self._dispersy.endpoint.total_down
+            self.log("scenario-bandwidth", up_delta=up-up_previous, down_diff=down-down_previous, up=up, down=down)
+            yield self.enable_bandwidth_statistics
 
     def parse_scenario(self):
         """
