@@ -733,9 +733,6 @@ class Dispersy(Singleton):
         @rtype: [Member]
 
         @note: This returns -any- Member, it may not be a member that is part of this community.
-
-        @todo: Since this method returns Members that are not specifically bound to any community,
-         this method should be moved to Dispersy
         """
         assert isinstance(mid, str)
         assert len(mid) == 20
@@ -1400,16 +1397,25 @@ class Dispersy(Singleton):
                         # database for all message.meta messages that were signed by
                         # message.authentication.members where the order of signing is not taken
                         # into account.
+#                         times[members] = dict((global_time, (packet_id, str(packet)))
+#                                               for count_, packet_id, global_time, packet
+#                                               in self._database.execute(u"""
+# SELECT COUNT(*), sync.id, sync.global_time, sync.packet
+# FROM sync
+# JOIN reference_member_sync ON reference_member_sync.sync = sync.id
+# WHERE sync.community = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
+# GROUP BY sync.id
+# """ % ", ".join("?" for _ in xrange(len(members))), (message.community.database_id, message.database_id) + members)
+#                                               if count_ == message.authentication.count)
                         times[members] = dict((global_time, (packet_id, str(packet)))
-                                              for count_, packet_id, global_time, packet
+                                              for global_time, packet_id, packet
                                               in self._database.execute(u"""
-SELECT COUNT(*), sync.id, sync.global_time, sync.packet
+SELECT sync.global_time, sync.id, sync.packet
 FROM sync
-JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-WHERE sync.community = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
-GROUP BY sync.id
-""" % ", ".join("?" for _ in xrange(len(members))), (message.community.database_id, message.database_id) + members)
-                                              if count_ == message.authentication.count)
+JOIN double_signed_sync ON double_signed_sync.sync = sync.id
+WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed_sync.member2 = ?
+""",
+                                                                        (message.database_id,) + members))
                         assert len(times[members]) <= message.distribution.history_size
                     tim = times[members]
 
@@ -2108,9 +2114,14 @@ GROUP BY sync.id
 
             # link multiple members is needed
             if is_multi_member_authentication:
-                self._database.executemany(u"INSERT INTO reference_member_sync (member, sync) VALUES (?, ?)",
-                                           [(member.database_id, message.packet_id) for member in message.authentication.members])
-                assert self._database.changes == message.authentication.count
+                # self._database.executemany(u"INSERT INTO reference_member_sync (member, sync) VALUES (?, ?)",
+                #                            [(member.database_id, message.packet_id) for member in message.authentication.members])
+                # assert self._database.changes == message.authentication.count
+                member1 = message.authentication.members[0].database_id
+                member2 = message.authentication.members[1].database_id
+                self._database.execute(u"INSERT INTO double_signed_sync (sync, member1, member2) VALUES (?, ?, ?)",
+                                       (message.packet_id, member1, member2) if member1 < member2 else (message.packet_id, member2, member1))
+                assert self._database.changes == 1
 
             # update global time
             highest_global_time = max(highest_global_time, message.distribution.global_time)
@@ -2119,43 +2130,73 @@ GROUP BY sync.id
             # delete packets that have become obsolete
             items = set()
             if is_multi_member_authentication:
-                for member_database_ids in set(tuple(sorted(member.database_id for member in message.authentication.members)) for message in messages):
-                    OR = u" OR ".join(u"reference_member_sync.member = ?" for _ in xrange(meta.authentication.count))
-                    iterator = self._database.execute(u"""
-                            SELECT sync.id, sync.member, sync.global_time, reference_member_sync.member
-                            FROM sync
-                            JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-                            WHERE sync.community = ? AND sync.meta_message = ? AND (%s)
-                            ORDER BY sync.global_time, sync.packet""" % OR,
-                                       (meta.community.database_id, meta.database_id) + member_database_ids)
-                    all_items = []
-                    # TODO: weird.  group by using row[0], that is sync.id, and that is unique, so
-                    # groupby makes no sence.  Furthermore, groupby requires row[0] to be sorted,
-                    # and that is not the case either.
-                    for id_, group in groupby(iterator, key=lambda row: row[0]):
-                        group = list(group)
-                        if len(group) == meta.authentication.count and member_database_ids == tuple(sorted(check_member_id for _, _, _, check_member_id in group)):
-                            _, creator_database_id, global_time, _ = group[0]
-                            all_items.append((id_, creator_database_id, global_time))
+                # for member_database_ids in set(tuple(sorted(member.database_id for member in message.authentication.members)) for message in messages):
+                #     OR = u" OR ".join(u"reference_member_sync.member = ?" for _ in xrange(meta.authentication.count))
+                #     iterator = self._database.execute(u"""
+                #             SELECT sync.id, sync.member, sync.global_time, reference_member_sync.member
+                #             FROM sync
+                #             JOIN reference_member_sync ON reference_member_sync.sync = sync.id
+                #             WHERE sync.community = ? AND sync.meta_message = ? AND (%s)
+                #             ORDER BY sync.global_time, sync.packet""" % OR,
+                #                        (meta.community.database_id, meta.database_id) + member_database_ids)
+                #     all_items = []
+                #     # TODO: weird.  group by using row[0], that is sync.id, and that is unique, so
+                #     # groupby makes no sence.  Furthermore, groupby requires row[0] to be sorted,
+                #     # and that is not the case either.
+                #     for id_, group in groupby(iterator, key=lambda row: row[0]):
+                #         group = list(group)
+                #         if len(group) == meta.authentication.count and member_database_ids == tuple(sorted(check_member_id for _, _, _, check_member_id in group)):
+                #             _, creator_database_id, global_time, _ = group[0]
+                #             all_items.append((id_, creator_database_id, global_time))
 
+                #     if len(all_items) > meta.distribution.history_size:
+                #         items.update(all_items[:len(all_items) - meta.distribution.history_size])
+
+                order = lambda member1, member2: (member1, member2) if member1 < member2 else (member2, member1)
+                for member1, member2 in set(order(message.authentication.members[0].database_id, message.authentication.members[1].database_id) for message in messages):
+                    assert member1 < member2, [member1, member2]
+                    all_items = list(self._database.execute(u"""
+SELECT sync.id
+FROM sync
+JOIN double_signed_sync ON double_signed_sync.sync = sync.id
+WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed_sync.member2 = ?
+ORDER BY sync.global_time, sync.packet""", (meta.database_id, member1, member2)))
                     if len(all_items) > meta.distribution.history_size:
                         items.update(all_items[:len(all_items) - meta.distribution.history_size])
 
             else:
+                # for member_database_id in set(message.authentication.member.database_id for message in messages):
+                #     all_items = list(self._database.execute(u"SELECT id, member, global_time FROM sync WHERE community = ? AND meta_message = ? AND member = ? ORDER BY global_time, packet",
+                #                                             (meta.community.database_id, meta.database_id, member_database_id)))
+                #     if len(all_items) > meta.distribution.history_size:
+                #         items.update(all_items[:len(all_items) - meta.distribution.history_size])
+
                 for member_database_id in set(message.authentication.member.database_id for message in messages):
-                    all_items = list(self._database.execute(u"SELECT id, member, global_time FROM sync WHERE community = ? AND meta_message = ? AND member = ? ORDER BY global_time, packet",
-                                             (meta.community.database_id, meta.database_id, member_database_id)))
+                    all_items = list(self._database.execute(u"""
+SELECT id
+FROM sync
+WHERE meta_message = ? AND member = ?
+ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     if len(all_items) > meta.distribution.history_size:
                         items.update(all_items[:len(all_items) - meta.distribution.history_size])
 
+            # if items:
+            #     self._database.executemany(u"DELETE FROM sync WHERE id = ?", [(id_,) for id_, _, _ in items])
+            #     assert len(items) == self._database.changes
+            #     if __debug__: dprint("deleted ", self._database.changes, " messages ", [id_ for id_, _, _ in items])
+
+            #     if is_multi_member_authentication:
+            #         self._database.executemany(u"DELETE FROM reference_member_sync WHERE sync = ?", [(id_,) for id_, _, _ in items])
+            #         assert len(items) * meta.authentication.count == self._database.changes
+
             if items:
-                self._database.executemany(u"DELETE FROM sync WHERE id = ?", [(id_,) for id_, _, _ in items])
+                self._database.executemany(u"DELETE FROM sync WHERE id = ?", items)
                 assert len(items) == self._database.changes
-                if __debug__: dprint("deleted ", self._database.changes, " messages ", [id_ for id_, _, _ in items])
+                if __debug__: dprint("deleted ", self._database.changes, " messages")
 
                 if is_multi_member_authentication:
-                    self._database.executemany(u"DELETE FROM reference_member_sync WHERE sync = ?", [(id_,) for id_, _, _ in items])
-                    assert len(items) * meta.authentication.count == self._database.changes
+                    self._database.executemany(u"DELETE FROM double_signed_sync WHERE sync = ?", items)
+                    assert len(items) == self._database.changes
 
                 # update_sync_range.update(global_time for _, _, global_time in items)
 
@@ -4124,7 +4165,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                 # 2. cleanup the reference_member_sync table.  however, we should keep the ones
                 # that are still referenced
-                self._database.execute(u"DELETE FROM reference_member_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = reference_member_sync.sync)", (community.database_id,))
+                # self._database.execute(u"DELETE FROM reference_member_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = reference_member_sync.sync)", (community.database_id,))
+                self._database.execute(u"DELETE FROM double_signed_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = double_signed_sync.sync)", (community.database_id,))
 
                 # 3. cleanup the malicious_proof table.  we need nothing here anymore
                 self._database.execute(u"DELETE FROM malicious_proof WHERE community = ?", (community.database_id,))
