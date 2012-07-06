@@ -206,14 +206,14 @@ def _parse(handle, interests):
         if stream.startswith("#"):
             continue
 
-        offset = _ignore_seperator(14, stream)
+        offset = _ignore_seperator(21, stream)
         if not stream[offset] == "s":
             raise ValueError("Expected a string encoded message")
         offset, message = _decode_str(offset+1, stream)
 
         try:
             if not interests or message in interests:
-                stamp = datetime.strptime(stream[:14], "%Y%m%d%H%M%S.f")
+                stamp = datetime.strptime(stream[:21], "%Y%m%d%H%M%S.f")
                 kargs = {}
                 while offset < len(stream) - 1:
                     offset = _ignore_seperator(offset, stream)
