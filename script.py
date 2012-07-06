@@ -74,7 +74,7 @@ class ScriptBase(object):
 
         elif self._testcases:
             call, args = self._testcases.pop(0)
-            dprint("start ", call, line=True, force=True)
+            if __debug__: dprint("start ", call, line=True, force=True)
             if call.__doc__:
                 dprint(call.__doc__, box=True)
             self._dispersy.callback.register(call, args, callback=self.next_testcase)
@@ -210,11 +210,9 @@ class ScenarioScriptBase(ScriptBase):
         pass
 
     def run(self):
-        dprint("foo", force=1)
         self.add_testcase(self._run)
 
     def _run(self):
-        dprint("bar", force=1)
         if __debug__: log(self._logfile, "start-scenario-script")
 
         #
@@ -1447,11 +1445,11 @@ class DispersySyncScript(ScriptBase):
         self.add_testcase(self.last_1_test)
         self.add_testcase(self.last_9_test)
 
-        # multimember authentication and last sync policies
-        self.add_testcase(self.last_1_multimember)
-        self.add_testcase(self.last_1_multimember_unique_member_global_time)
-        # # TODO add more checks for the multimemberauthentication case
-        # self.add_testcase(self.last_9_multimember)
+        # doublemember authentication and last sync policies
+        self.add_testcase(self.last_1_doublemember)
+        self.add_testcase(self.last_1_doublemember_unique_member_global_time)
+        # # TODO add more checks for the doublememberauthentication case
+        # self.add_testcase(self.last_9_doublemember)
 
     def modulo_test(self):
         """
@@ -1569,9 +1567,8 @@ class DispersySyncScript(ScriptBase):
         node.init_my_member()
 
         # should be no messages from NODE yet
-        times = list(self._dispersy_database.execute(u"SELECT sync.global_time FROM sync JOIN reference_member_sync ON (reference_member_sync.sync = sync.id) WHERE sync.community = ? AND reference_member_sync.member = ? AND sync.meta_message IN (?, ?)", (community.database_id, node.my_member.database_id, in_order_message.database_id, out_order_message.database_id)))
-        #, random_order_message.database_id)))
-        assert_(len(times) == 0, times)
+        count, = self._dispersy_database.execute(u"SELECT COUNT(*) FROM sync WHERE sync.community = ? AND sync.meta_message IN (?, ?)", (community.database_id, in_order_message.database_id, out_order_message.database_id)).next()
+        assert_(count == 0, count)
 
         # create some data
         global_times = range(10, 25, 2)
@@ -1760,11 +1757,11 @@ class DispersySyncScript(ScriptBase):
         community.create_dispersy_destroy_community(u"hard-kill")
         self._dispersy.get_community(community.cid).unload_community()
 
-    def last_1_multimember(self):
+    def last_1_doublemember(self):
         """
         Normally the LastSyncDistribution policy stores the last N messages for each member that
-        created the message.  However, when the MultiMemberAuthentication policy is used, there are
-        multiple members.
+        created the message.  However, when the DoubleMemberAuthentication policy is used, there are
+        two members.
 
         This can be handled in two ways:
 
@@ -1779,7 +1776,7 @@ class DispersySyncScript(ScriptBase):
         these options.
         """
         community = DebugCommunity.create_community(self._my_member)
-        message = community.get_meta_message(u"last-1-multimember-text")
+        message = community.get_meta_message(u"last-1-doublemember-text")
 
         # create node and ensure that SELF knows the node address
         nodeA = DebugNode()
@@ -1814,42 +1811,36 @@ class DispersySyncScript(ScriptBase):
         global_time = 10
         other_global_time = global_time + 1
         messages = []
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeB.my_member], "should be accepted (1)", global_time))
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeC.my_member], "should be accepted (1)", other_global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeB.my_member, "should be accepted (1)", global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeC.my_member, "should be accepted (1)", other_global_time))
         nodeA.give_messages(messages)
-        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, reference_member_sync.member FROM sync JOIN reference_member_sync ON reference_member_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
-        assert_(len(entries) == 4, entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeB.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeC.my_member.database_id) in entries)
+        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, double_signed_sync.member1, double_signed_sync.member2 FROM sync JOIN double_signed_sync ON double_signed_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
+        assert_(len(entries) == 2, entries)
+        assert_((global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeB.my_member.database_id), max(nodeA.my_member.database_id, nodeB.my_member.database_id)) in entries)
+        assert_((other_global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeC.my_member.database_id), max(nodeA.my_member.database_id, nodeC.my_member.database_id)) in entries)
 
         # send a message
         global_time = 20
         other_global_time = global_time + 1
         messages = []
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeB.my_member], "should be accepted (2) @%d" % global_time, global_time))
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeC.my_member], "should be accepted (2) @%d" % other_global_time, other_global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeB.my_member, "should be accepted (2) @%d" % global_time, global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeC.my_member, "should be accepted (2) @%d" % other_global_time, other_global_time))
         nodeA.give_messages(messages)
-        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, reference_member_sync.member FROM sync JOIN reference_member_sync ON reference_member_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
-        assert_(len(entries) == 4, entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeB.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeC.my_member.database_id) in entries)
+        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, double_signed_sync.member1, double_signed_sync.member2 FROM sync JOIN double_signed_sync ON double_signed_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
+        assert_(len(entries) == 2, entries)
+        assert_((global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeB.my_member.database_id), max(nodeA.my_member.database_id, nodeB.my_member.database_id)) in entries)
+        assert_((other_global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeC.my_member.database_id), max(nodeA.my_member.database_id, nodeC.my_member.database_id)) in entries)
 
         # send a message (older: should be dropped)
         old_global_time = 8
         messages = []
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeB.my_member], "should be dropped (1)", old_global_time))
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeC.my_member], "should be dropped (1)", old_global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeB.my_member, "should be dropped (1)", old_global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeC.my_member, "should be dropped (1)", old_global_time))
         nodeA.give_messages(messages)
-        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, reference_member_sync.member FROM sync JOIN reference_member_sync ON reference_member_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
-        assert_(len(entries) == 4, entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeB.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries, entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeC.my_member.database_id) in entries)
+        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, double_signed_sync.member1, double_signed_sync.member2 FROM sync JOIN double_signed_sync ON double_signed_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
+        assert_(len(entries) == 2, entries)
+        assert_((global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeB.my_member.database_id), max(nodeA.my_member.database_id, nodeB.my_member.database_id)) in entries)
+        assert_((other_global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeC.my_member.database_id), max(nodeA.my_member.database_id, nodeC.my_member.database_id)) in entries)
 
         yield 0.1
         nodeA.drop_packets()
@@ -1857,49 +1848,45 @@ class DispersySyncScript(ScriptBase):
         # send a message (older: should be dropped)
         old_global_time = 8
         messages = []
-        messages.append(nodeB.create_last_1_multimember_text_message([nodeA.my_member], "should be dropped (1)", old_global_time))
-        messages.append(nodeC.create_last_1_multimember_text_message([nodeA.my_member], "should be dropped (1)", old_global_time))
+        messages.append(nodeB.create_last_1_doublemember_text_message(nodeA.my_member, "should be dropped (1)", old_global_time))
+        messages.append(nodeC.create_last_1_doublemember_text_message(nodeA.my_member, "should be dropped (1)", old_global_time))
         nodeA.give_messages(messages)
-        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, reference_member_sync.member FROM sync JOIN reference_member_sync ON reference_member_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
-        assert_(len(entries) == 4, entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeB.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeC.my_member.database_id) in entries)
+        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, double_signed_sync.member1, double_signed_sync.member2 FROM sync JOIN double_signed_sync ON double_signed_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
+        assert_(len(entries) == 2, entries)
+        assert_((global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeB.my_member.database_id), max(nodeA.my_member.database_id, nodeB.my_member.database_id)) in entries)
+        assert_((other_global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeC.my_member.database_id), max(nodeA.my_member.database_id, nodeC.my_member.database_id)) in entries)
 
         # as proof for the drop, the newest message should be sent back
         yield 0.1
         times = []
-        _, message = nodeA.receive_message(message_names=[u"last-1-multimember-text"])
+        _, message = nodeA.receive_message(message_names=[u"last-1-doublemember-text"])
         times.append(message.distribution.global_time)
-        _, message = nodeA.receive_message(message_names=[u"last-1-multimember-text"])
+        _, message = nodeA.receive_message(message_names=[u"last-1-doublemember-text"])
         times.append(message.distribution.global_time)
         assert_(sorted(times) == [global_time, other_global_time])
 
         # send a message (older + different member combination: should be dropped)
         old_global_time = 9
         messages = []
-        messages.append(nodeB.create_last_1_multimember_text_message([nodeA.my_member], "should be dropped (2)", old_global_time))
-        messages.append(nodeC.create_last_1_multimember_text_message([nodeA.my_member], "should be dropped (2)", old_global_time))
+        messages.append(nodeB.create_last_1_doublemember_text_message(nodeA.my_member, "should be dropped (2)", old_global_time))
+        messages.append(nodeC.create_last_1_doublemember_text_message(nodeA.my_member, "should be dropped (2)", old_global_time))
         nodeA.give_messages(messages)
-        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, reference_member_sync.member FROM sync JOIN reference_member_sync ON reference_member_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
-        assert_(len(entries) == 4, entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((global_time, nodeA.my_member.database_id, nodeB.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeA.my_member.database_id) in entries)
-        assert_((other_global_time, nodeA.my_member.database_id, nodeC.my_member.database_id) in entries)
+        entries = list(self._dispersy_database.execute(u"SELECT sync.global_time, sync.member, double_signed_sync.member1, double_signed_sync.member2 FROM sync JOIN double_signed_sync ON double_signed_sync.sync = sync.id WHERE sync.community = ? AND sync.member = ? AND sync.meta_message = ?", (community.database_id, nodeA.my_member.database_id, message.database_id)))
+        assert_(len(entries) == 2, entries)
+        assert_((global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeB.my_member.database_id), max(nodeA.my_member.database_id, nodeB.my_member.database_id)) in entries)
+        assert_((other_global_time, nodeA.my_member.database_id, min(nodeA.my_member.database_id, nodeC.my_member.database_id), max(nodeA.my_member.database_id, nodeC.my_member.database_id)) in entries)
 
         # cleanup
         community.create_dispersy_destroy_community(u"hard-kill")
         self._dispersy.get_community(community.cid).unload_community()
 
-    def last_1_multimember_unique_member_global_time(self):
+    def last_1_doublemember_unique_member_global_time(self):
         """
-        Even with multi member messages, the first member is the creator and may only have one
+        Even with double member messages, the first member is the creator and may only have one
         message for each global time.
         """
         community = DebugCommunity.create_community(self._my_member)
-        message = community.get_meta_message(u"last-1-multimember-text")
+        message = community.get_meta_message(u"last-1-doublemember-text")
 
         # create node and ensure that SELF knows the node address
         nodeA = DebugNode()
@@ -1922,8 +1909,8 @@ class DispersySyncScript(ScriptBase):
         # send two messages
         global_time = 10
         messages = []
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeB.my_member], "should be accepted (1.1)", global_time))
-        messages.append(nodeA.create_last_1_multimember_text_message([nodeC.my_member], "should be accepted (1.2)", global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeB.my_member, "should be accepted (1.1)", global_time))
+        messages.append(nodeA.create_last_1_doublemember_text_message(nodeC.my_member, "should be accepted (1.2)", global_time))
 
         # we NEED the messages to be handled in one batch.  using the socket may change this
         nodeA.give_messages(messages)
@@ -2060,8 +2047,6 @@ class DispersySignatureScript(ScriptBase):
 
         self.add_testcase(self.double_signed_timeout)
         self.add_testcase(self.double_signed_response)
-        # self.add_testcase(self.triple_signed_timeout)
-        # self.add_testcase(self.triple_signed_response)
 
     def double_signed_timeout(self):
         """
@@ -2144,112 +2129,6 @@ class DispersySignatureScript(ScriptBase):
         node.give_message(node.create_dispersy_signature_response_message(identifier, submsg, global_time, candidate))
         yield 1.11
         assert_(container["response"] == 1, container["response"])
-
-        # cleanup
-        community.create_dispersy_destroy_community(u"hard-kill")
-        self._dispersy.get_community(community.cid).unload_community()
-
-    def triple_signed_timeout(self):
-        """
-        SELF will request a signature from NODE1 and NODE2.  Both NODE1 and NODE2 will ignore this
-        request and SELF should get a timeout on the signature request after a few seconds.
-        """
-        community = DebugCommunity.create_community(self._my_member)
-        container = {"timeout":0}
-
-        # create node and ensure that SELF knows the node address
-        node1 = Node()
-        node1.init_socket()
-        node1.set_community(community)
-        node1.init_my_member()
-
-        # create node and ensure that SELF knows the node address
-        node2 = Node()
-        node2.init_socket()
-        node2.set_community(community)
-        node2.init_my_member()
-        yield 0.555
-
-        # SELF requests NODE1 and NODE2 to double sign
-        def on_response(response):
-            assert_(response is None)
-            container["timeout"] += 1
-        request = community.create_triple_signed_text("Hello World!", Member(node1.my_member.public_key), Member(node2.my_member.public_key), on_response, (), 3.0)
-        yield 0.11
-
-        # receive dispersy-signature-request message
-        _, message = node1.receive_message(message_names=[u"dispersy-signature-request"])
-        _, message = node2.receive_message(message_names=[u"dispersy-signature-request"])
-        # do not send a response
-
-        # should timeout
-        for counter in range(4):
-            dprint("waiting... ", 4 - counter)
-            yield 1.0
-
-        assert_(container["timeout"] == 1, container["timeout"])
-
-        # cleanup
-        community.create_dispersy_destroy_community(u"hard-kill")
-        self._dispersy.get_community(community.cid).unload_community()
-
-    def triple_signed_response(self):
-        """
-        SELF will request a signature from NODE1 and NODE2.  SELF will receive the two signatures
-        and produce a triple signed message.
-        """
-        ec = ec_generate_key(u"low")
-        community = DebugCommunity.create_community(self._my_member)
-        container = {"response":0}
-
-        # create node and ensure that SELF knows the node address
-        node1 = Node()
-        node1.init_socket()
-        node1.set_community(community)
-        node1.init_my_member()
-
-        # create node and ensure that SELF knows the node address
-        node2 = Node()
-        node2.init_socket()
-        node2.set_community(community)
-        node2.init_my_member()
-
-        # SELF requests NODE1 and NODE2 to add their signature
-        def on_response(response):
-            assert_(container["response"] == 0 or request.authentication.is_signed)
-            container["response"] += 1
-        request = community.create_triple_signed_text("Hello World!", Member(node1.my_member.public_key), Member(node2.my_member.public_key), on_response, (), 3.0)
-        yield 0.11
-
-        # receive dispersy-signature-request message
-        candidate, message = node1.receive_message(message_names=[u"dispersy-signature-request"])
-        submsg = message.payload.message
-        third_signature_offset = len(submsg.packet) - node2.my_member.signature_length
-        second_signature_offset = third_signature_offset - node1.my_member.signature_length
-        first_signature_offset = second_signature_offset - community.my_member.signature_length
-        assert_(submsg.packet[second_signature_offset:third_signature_offset] == "\x00" * node1.my_member.signature_length)
-        signature1 = node1.my_member.sign(submsg.packet, length=first_signature_offset)
-
-        # send dispersy-signature-response message
-        request_id = hashlib.sha1(request.packet).digest()
-        global_time = community.global_time
-        node1.give_message(node1.create_dispersy_signature_response_message(request_id, signature1, global_time, candidate))
-
-        # receive dispersy-signature-request message
-        candidate, message = node2.receive_message(message_names=[u"dispersy-signature-request"])
-        submsg = message.payload.message
-        third_signature_offset = len(submsg.packet) - node2.my_member.signature_length
-        second_signature_offset = third_signature_offset - node1.my_member.signature_length
-        first_signature_offset = second_signature_offset - community.my_member.signature_length
-        assert_(submsg.packet[third_signature_offset:] == "\x00" * node2.my_member.signature_length)
-        signature2 = node2.my_member.sign(submsg.packet, length=first_signature_offset)
-
-        # send dispersy-signature-response message
-        request_id = hashlib.sha1(request.packet).digest()
-        global_time = community.global_time
-        node2.give_message(node2.create_dispersy_signature_response_message(request_id, signature2, global_time, candidate))
-        yield 1.11
-        assert_(container["response"] == 2, container["response"])
 
         # cleanup
         community.create_dispersy_destroy_community(u"hard-kill")

@@ -332,7 +332,7 @@ class AuthorizePayload(Payload):
             u"revoke".
             """
             if __debug__:
-                from authentication import MemberAuthentication, MultiMemberAuthentication
+                from authentication import MemberAuthentication, DoubleMemberAuthentication
                 from resolution import PublicResolution, LinearResolution, DynamicResolution
                 from member import Member
                 from message import Message
@@ -342,7 +342,7 @@ class AuthorizePayload(Payload):
                     assert isinstance(triplet[0], Member), triplet[0]
                     assert isinstance(triplet[1], Message), triplet[1]
                     assert isinstance(triplet[1].resolution, (PublicResolution, LinearResolution, DynamicResolution)), triplet[1]
-                    assert isinstance(triplet[1].authentication, (MemberAuthentication, MultiMemberAuthentication)), triplet[1]
+                    assert isinstance(triplet[1].authentication, (MemberAuthentication, DoubleMemberAuthentication)), triplet[1]
                     assert isinstance(triplet[2], unicode), triplet[2]
                     assert triplet[2] in (u"permit", u"authorize", u"revoke", u"undo"), triplet[2]
             super(AuthorizePayload.Implementation, self).__init__(meta)
@@ -363,7 +363,7 @@ class RevokePayload(Payload):
             u"revoke".
             """
             if __debug__:
-                from authentication import MemberAuthentication, MultiMemberAuthentication
+                from authentication import MemberAuthentication, DoubleMemberAuthentication
                 from resolution import PublicResolution, LinearResolution, DynamicResolution
                 from member import Member
                 from message import Message
@@ -373,7 +373,7 @@ class RevokePayload(Payload):
                     assert isinstance(triplet[0], Member), triplet
                     assert isinstance(triplet[1], Message), triplet
                     assert isinstance(triplet[1].resolution, (PublicResolution, LinearResolution, DynamicResolution)), triplet
-                    assert isinstance(triplet[1].authentication, (MemberAuthentication, MultiMemberAuthentication)), triplet
+                    assert isinstance(triplet[1].authentication, (MemberAuthentication, DoubleMemberAuthentication)), triplet
                     assert isinstance(triplet[2], unicode), triplet
                     assert triplet[2] in (u"permit", u"authorize", u"revoke", u"undo"), triplet
             super(RevokePayload.Implementation, self).__init__(meta)

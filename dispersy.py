@@ -47,7 +47,7 @@ from random import random, shuffle
 from socket import inet_aton, error as socket_error
 from time import time
 
-from authentication import NoAuthentication, MemberAuthentication, MultiMemberAuthentication
+from authentication import NoAuthentication, MemberAuthentication, DoubleMemberAuthentication
 from bloomfilter import BloomFilter
 from bootstrap import get_bootstrap_candidates
 from callback import Callback
@@ -1280,7 +1280,7 @@ class Dispersy(Singleton):
            and the new message is older than the older message that is already available, it is
            dropped.
 
-         - When the MultiMemberAuthentication policy is used: the members that signed the message
+         - When the DoubleMemberAuthentication policy is used: the members that signed the message
            may not have more than history_size messages in the database at any one time.  Hence, if
            this limit is reached and the new message is older than the older message that is already
            available, it is dropped.  Note that the signature order is not important.
@@ -1296,7 +1296,7 @@ class Dispersy(Singleton):
         assert all(isinstance(message, Message.Implementation) for message in messages)
         assert all(message.community == messages[0].community for message in messages)
         assert all(message.meta == messages[0].meta for message in messages)
-        assert all(isinstance(message.authentication, (MemberAuthentication.Implementation, MultiMemberAuthentication.Implementation)) for message in messages)
+        assert all(isinstance(message.authentication, (MemberAuthentication.Implementation, DoubleMemberAuthentication.Implementation)) for message in messages)
 
         def check_member_and_global_time(unique, times, message):
             """
@@ -1349,7 +1349,7 @@ class Dispersy(Singleton):
                     tim.append(message.distribution.global_time)
                     return message
 
-        def check_multi_member_and_global_time(unique, times, message):
+        def check_double_member_and_global_time(unique, times, message):
             """
             No other message may exist with this message.authentication.members / global_time
             combination, regardless of the ordering of the members
@@ -1357,7 +1357,7 @@ class Dispersy(Singleton):
             assert isinstance(unique, set)
             assert isinstance(times, dict)
             assert isinstance(message, Message.Implementation)
-            assert isinstance(message.authentication, MultiMemberAuthentication.Implementation)
+            assert isinstance(message.authentication, DoubleMemberAuthentication.Implementation)
 
             key = (message.authentication.member.database_id, message.distribution.global_time)
             if key in unique:
@@ -1381,32 +1381,11 @@ class Dispersy(Singleton):
                         if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (_is_duplicate_sync_message)")
                         return DropMessage(message, "duplicate message by member^global_time (4)")
 
-                    # # ensure that the community / member / global_time is always unique
-                    # try:
-                    #     self._database.execute(u"SELECT 1 FROM sync WHERE community = ? AND member = ? AND global_time = ?",
-                    #                            (message.community.database_id, message.authentication.member.database_id, message.distribution.global_time)).next()
-                    # except StopIteration:
-                    #     pass
-                    # else:
-                    #     # we have the previous message (drop)
-                    #     if self._is_duplicate_sync_message(message):
-                    #         return DropMessage(message, "duplicate message by member^global_time (4)")
-
                     if not members in times:
                         # the next query obtains a list with all global times that we have in the
                         # database for all message.meta messages that were signed by
                         # message.authentication.members where the order of signing is not taken
                         # into account.
-#                         times[members] = dict((global_time, (packet_id, str(packet)))
-#                                               for count_, packet_id, global_time, packet
-#                                               in self._database.execute(u"""
-# SELECT COUNT(*), sync.id, sync.global_time, sync.packet
-# FROM sync
-# JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-# WHERE sync.community = ? AND sync.meta_message = ? AND reference_member_sync.member IN (%s)
-# GROUP BY sync.id
-# """ % ", ".join("?" for _ in xrange(len(members))), (message.community.database_id, message.database_id) + members)
-#                                               if count_ == message.authentication.count)
                         times[members] = dict((global_time, (packet_id, str(packet)))
                                               for global_time, packet_id, packet
                                               in self._database.execute(u"""
@@ -1416,7 +1395,7 @@ JOIN double_signed_sync ON double_signed_sync.sync = sync.id
 WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed_sync.member2 = ?
 """,
                                                                         (message.database_id,) + members))
-                        assert len(times[members]) <= message.distribution.history_size
+                        assert len(times[members]) <= message.distribution.history_size, [len(times[members]), message.distribution.history_size]
                     tim = times[members]
 
                     if message.distribution.global_time in tim:
@@ -1490,10 +1469,10 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         # instead of storing HISTORY_SIZE messages for each authentication.member, we will store
         # HISTORY_SIZE messages for each combination of authentication.members.
         else:
-            assert isinstance(meta.authentication, MultiMemberAuthentication)
+            assert isinstance(meta.authentication, DoubleMemberAuthentication)
             unique = set()
             times = {}
-            messages = [message if isinstance(message, DropMessage) else check_multi_member_and_global_time(unique, times, message) for message in messages]
+            messages = [message if isinstance(message, DropMessage) else check_double_member_and_global_time(unique, times, message) for message in messages]
 
         return messages
 
@@ -2084,13 +2063,13 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
 
         meta = messages[0].meta
         if __debug__: dprint("attempting to store ", len(messages), " ", meta.name, " messages")
-        is_multi_member_authentication = isinstance(meta.authentication, MultiMemberAuthentication)
+        is_double_member_authentication = isinstance(meta.authentication, DoubleMemberAuthentication)
         highest_global_time = 0
 
         # update_sync_range = set()
         for message in messages:
             # the signature must be set
-            assert isinstance(message.authentication, (MemberAuthentication.Implementation, MultiMemberAuthentication.Implementation)), message.authentication
+            assert isinstance(message.authentication, (MemberAuthentication.Implementation, DoubleMemberAuthentication.Implementation)), message.authentication
             assert message.authentication.is_signed
             assert not message.packet[-10:] == "\x00" * 10, message.packet[-10:].encode("HEX")
             # we must have the identity message as well
@@ -2112,11 +2091,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             message.packet_id = self._database.last_insert_rowid
             if __debug__: dprint("insert_rowid: ", message.packet_id, " for ", message.name)
 
-            # link multiple members is needed
-            if is_multi_member_authentication:
-                # self._database.executemany(u"INSERT INTO reference_member_sync (member, sync) VALUES (?, ?)",
-                #                            [(member.database_id, message.packet_id) for member in message.authentication.members])
-                # assert self._database.changes == message.authentication.count
+            if is_double_member_authentication:
                 member1 = message.authentication.members[0].database_id
                 member2 = message.authentication.members[1].database_id
                 self._database.execute(u"INSERT INTO double_signed_sync (sync, member1, member2) VALUES (?, ?, ?)",
@@ -2129,29 +2104,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         if isinstance(meta.distribution, LastSyncDistribution):
             # delete packets that have become obsolete
             items = set()
-            if is_multi_member_authentication:
-                # for member_database_ids in set(tuple(sorted(member.database_id for member in message.authentication.members)) for message in messages):
-                #     OR = u" OR ".join(u"reference_member_sync.member = ?" for _ in xrange(meta.authentication.count))
-                #     iterator = self._database.execute(u"""
-                #             SELECT sync.id, sync.member, sync.global_time, reference_member_sync.member
-                #             FROM sync
-                #             JOIN reference_member_sync ON reference_member_sync.sync = sync.id
-                #             WHERE sync.community = ? AND sync.meta_message = ? AND (%s)
-                #             ORDER BY sync.global_time, sync.packet""" % OR,
-                #                        (meta.community.database_id, meta.database_id) + member_database_ids)
-                #     all_items = []
-                #     # TODO: weird.  group by using row[0], that is sync.id, and that is unique, so
-                #     # groupby makes no sence.  Furthermore, groupby requires row[0] to be sorted,
-                #     # and that is not the case either.
-                #     for id_, group in groupby(iterator, key=lambda row: row[0]):
-                #         group = list(group)
-                #         if len(group) == meta.authentication.count and member_database_ids == tuple(sorted(check_member_id for _, _, _, check_member_id in group)):
-                #             _, creator_database_id, global_time, _ = group[0]
-                #             all_items.append((id_, creator_database_id, global_time))
-
-                #     if len(all_items) > meta.distribution.history_size:
-                #         items.update(all_items[:len(all_items) - meta.distribution.history_size])
-
+            if is_double_member_authentication:
                 order = lambda member1, member2: (member1, member2) if member1 < member2 else (member2, member1)
                 for member1, member2 in set(order(message.authentication.members[0].database_id, message.authentication.members[1].database_id) for message in messages):
                     assert member1 < member2, [member1, member2]
@@ -2165,12 +2118,6 @@ ORDER BY sync.global_time, sync.packet""", (meta.database_id, member1, member2))
                         items.update(all_items[:len(all_items) - meta.distribution.history_size])
 
             else:
-                # for member_database_id in set(message.authentication.member.database_id for message in messages):
-                #     all_items = list(self._database.execute(u"SELECT id, member, global_time FROM sync WHERE community = ? AND meta_message = ? AND member = ? ORDER BY global_time, packet",
-                #                                             (meta.community.database_id, meta.database_id, member_database_id)))
-                #     if len(all_items) > meta.distribution.history_size:
-                #         items.update(all_items[:len(all_items) - meta.distribution.history_size])
-
                 for member_database_id in set(message.authentication.member.database_id for message in messages):
                     all_items = list(self._database.execute(u"""
 SELECT id
@@ -2180,21 +2127,12 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     if len(all_items) > meta.distribution.history_size:
                         items.update(all_items[:len(all_items) - meta.distribution.history_size])
 
-            # if items:
-            #     self._database.executemany(u"DELETE FROM sync WHERE id = ?", [(id_,) for id_, _, _ in items])
-            #     assert len(items) == self._database.changes
-            #     if __debug__: dprint("deleted ", self._database.changes, " messages ", [id_ for id_, _, _ in items])
-
-            #     if is_multi_member_authentication:
-            #         self._database.executemany(u"DELETE FROM reference_member_sync WHERE sync = ?", [(id_,) for id_, _, _ in items])
-            #         assert len(items) * meta.authentication.count == self._database.changes
-
             if items:
                 self._database.executemany(u"DELETE FROM sync WHERE id = ?", items)
                 assert len(items) == self._database.changes
                 if __debug__: dprint("deleted ", self._database.changes, " messages")
 
-                if is_multi_member_authentication:
+                if is_double_member_authentication:
                     self._database.executemany(u"DELETE FROM double_signed_sync WHERE sync = ?", items)
                     assert len(items) == self._database.changes
 
@@ -2202,7 +2140,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
             # 12/10/11 Boudewijn: verify that we do not have to many packets in the database
             if __debug__:
-                if not is_multi_member_authentication:
+                if not is_double_member_authentication:
                     for message in messages:
                         history_size, = self._database.execute(u"SELECT COUNT(1) FROM sync WHERE meta_message = ? AND member = ?", (message.database_id, message.authentication.member.database_id)).next()
                         assert history_size <= message.distribution.history_size, [count, message.distribution.history_size, message.authentication.member.database_id]
@@ -3376,18 +3314,17 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         Create a dispersy-signature-request message.
 
         The dispersy-signature-request message contains a sub-message that is to be signed by
-        multiple members.  The sub-message must use the MultiMemberAuthentication policy in order to
-        store the multiple members and their signatures.
+        another member.  The sub-message must use the DoubleMemberAuthentication policy in order to
+        store the two members and their signatures.
 
-        Typically, each member that should add a signature will receive the
-        dispersy-signature-request message.  If they choose to add their signature, a
-        dispersy-signature-response message is send back.  This in turn will result in a call to
-        RESPONSE_FUNC.
+        If the other member decides to add their signature she will sent back a
+        dispersy-signature-response message.  This message contains a (possibly) modified version of
+        the sub-message.
 
-        Each dispersy-signed-response message will result in one call to RESPONSE_FUNC.  The first
-        parameter for this call is the SignatureRequestCache instance returned by
-        create_signature_request, the second parameter is the proposed message that was send back,
-        the third parameter is a boolean indicating that MESSAGE was modified.
+        Receiving the dispersy-signed-response message results in a call to RESPONSE_FUNC.  The
+        first parameter for this call is the SignatureRequestCache instance returned by
+        create_signature_request, the second parameter is the proposed message that was sent back,
+        the third parameter is a boolean indicating weather MESSAGE was modified.
 
         RESPONSE_FUNC must return a boolean value indicating weather the proposed message (the
         second parameter) is accepted.  Once we accept all signature responses we will add our own
@@ -3400,7 +3337,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
          created.
         @type community: Community
 
-        @param message: The message that is to receive multiple signatures.
+        @param message: The message that needs the signature.
         @type message: Message.Implementation
 
         @param response_func: The method that is called when a signature or a timeout is received.
@@ -3422,7 +3359,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             from community import Community
         assert isinstance(community, Community)
         assert isinstance(message, Message.Implementation)
-        assert isinstance(message.authentication, MultiMemberAuthentication.Implementation)
+        assert isinstance(message.authentication, DoubleMemberAuthentication.Implementation)
         assert hasattr(response_func, "__call__")
         assert isinstance(response_args, tuple)
         assert isinstance(timeout, float)
@@ -3451,13 +3388,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         for message in messages:
             # we can not timeline.check this message because it uses the NoAuthentication policy
 
-            # submsg contains the message that should receive multiple signatures
+            # submsg contains the double signed message (that currently contains -no- signatures)
             submsg = message.payload.message
 
             has_private_member = False
             try:
                 for is_signed, member in submsg.authentication.signed_members:
-                    # Security: do NOT allow to accidentally sign with master member.
+                    # security: do NOT allow to accidentally sign with master member.
                     if member == message.community.master_member:
                         raise DropMessage(message, "You may never ask for a master member signature")
 
@@ -3474,7 +3411,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 yield DropMessage(message, "Nothing to sign")
                 continue
 
-            # we can not timeline.check the submessage because it uses the MultiMemberAuthentication policy
+            # we can not timeline.check the submessage because it uses the DoubleMemberAuthentication policy
             # # the message that we are signing must be valid according to our timeline
             # # if not message.community.timeline.check(submsg):
             # #     raise DropMessage("Does not fit timeline")
@@ -3487,9 +3424,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         We received a dispersy-signature-request message.
 
         This message contains a sub-message (message.payload.message) that the message creator would
-        like to have us sign.  The message may, or may not, have already been signed by some of the
-        other members.  Furthermore, we can choose for ourselves if we want to add our signature to
-        the sub-message or not.
+        like to have us sign.  We can choose for ourselves if we want to add our signature to the
+        sub-message or not.
 
         Once we have determined that we could provide a signature and that the sub-message is valid,
         from a timeline perspective, we will ask the community to say yes or no to adding our
@@ -3500,8 +3436,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         modified sub-message.  If so, a dispersy-signature-response message is send to the creator
         of the message, the first one in the authentication list.
 
-        If we can add multiple signatures, i.e. we have the private keys for more that one member
-        signing the sub-message, the allow_signature_func is called only once but multiple
+        If we can add multiple signatures, i.e. we have the private keys for both the message
+        creator and the second member, the allow_signature_func is called only once but multiple
         signatures will be appended.
 
         @see: create_signature_request
@@ -3514,7 +3450,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         for message in messages:
             assert isinstance(message, Message.Implementation), type(message)
             assert isinstance(message.payload.message, Message.Implementation), type(message.payload.message)
-            assert isinstance(message.payload.message.authentication, MultiMemberAuthentication.Implementation), type(message.payload.message.authentication)
+            assert isinstance(message.payload.message.authentication, DoubleMemberAuthentication.Implementation), type(message.payload.message.authentication)
 
             # the community must allow this signature
             submsg = message.payload.message.authentication.allow_signature_func(message.payload.message)
@@ -4163,9 +4099,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 # dispersy-identity messages
                 self._database.execute(u"DELETE FROM sync WHERE community = ? AND NOT (meta_message = ? OR meta_message = ? OR meta_message = ?)", (community.database_id, authorize_message_id, destroy_message_id, identity_message_id))
 
-                # 2. cleanup the reference_member_sync table.  however, we should keep the ones
-                # that are still referenced
-                # self._database.execute(u"DELETE FROM reference_member_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = reference_member_sync.sync)", (community.database_id,))
+                # 2. cleanup the double_signed_sync table.  however, we should keep the ones that
+                # are still referenced
                 self._database.execute(u"DELETE FROM double_signed_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = double_signed_sync.sync)", (community.database_id,))
 
                 # 3. cleanup the malicious_proof table.  we need nothing here anymore
@@ -4381,7 +4316,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if not packet == message.packet:
                     raise ValueError("inconsistent binary in packet ", packet_id, "@", global_time)
 
-                # back-off because the sanity check is very expensive
                 if __debug__: dprint("packet ", packet_id, "@", global_time, " is OK")
 
         for meta in community.get_meta_messages():
@@ -4404,7 +4338,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                     counter += 1
 
-                    # back-off because the sanity check is very expensive
                     if __debug__: dprint("FullSyncDistribution for '", meta.name, "' is OK")
 
             #
@@ -4427,32 +4360,26 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                         if counter > meta.distribution.history_size:
                             raise ValueError("decayed packet ", packet_id, " still in database")
 
-                        # back-off because the sanity check is very expensive
                         if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
 
                 else:
-                    assert isinstance(meta.authentication, MultiMemberAuthentication)
-                    counters = {}
+                    assert isinstance(meta.authentication, DoubleMemberAuthentication)
                     for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member ASC, global_time DESC LIMIT ? OFFSET ?", (meta.database_id,)):
                         message = self.convert_packet_to_message(str(packet), community)
                         assert message
 
-                        members = list(self._database.execute(u"SELECT member FROM reference_member_sync WHERE sync = ? ORDER BY member", (packet_id,)))
-                        if members in counters:
-                            counters[members] += 1
-                        else:
-                            counters[members] = 1
+                        try:
+                            member1, member2 = self._database.execute(u"SELECT member1, member2 FROM double_signed_sync WHERE sync = ?", (packet_id,)).next()
+                        except StopIteration:
+                            raise ValueError("found double signed message without an entry in the double_signed_sync table")
 
-                        # 1. there are meta.authentication.count entries in reference_member_sync per entry in sync
-                        if not len(members) == meta.authentication.count:
-                            raise ValueError("inconsistent references in packet ", packet_id)
+                        if not member1 < member2:
+                            raise ValueError("member1 (", member1, ") must always be smaller than member2 (", member2, ")")
 
-                        # 2. there are meta.distribution.history_size or less (member 1, member 2, ..., member N)
-                        if counters[members] > meta.distribution.history_size:
-                            raise ValueError("decayed packet ", packet_id, " still in database")
+                        if not (member1 == member_id or member2 == member_id):
+                            raise ValueError("member1 (", member1, ") or member2 (", member2, ") must be the message creator (", member_id, ")")
 
-                        # back-off because the sanity check is very expensive
-                        if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
+                    if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
 
         if __debug__: dprint(community.cid.encode("HEX"), " success")
 
