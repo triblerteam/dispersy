@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 from bz2 import BZ2File
-from datetime import datetime
 
 class NotInterested(Exception):
     pass
@@ -206,14 +205,14 @@ def _parse(handle, interests):
         if stream.startswith("#"):
             continue
 
-        offset = _ignore_seperator(21, stream)
+        offset = _ignore_seperator(17, stream)
         if not stream[offset] == "s":
             raise ValueError("Expected a string encoded message")
         offset, message = _decode_str(offset+1, stream)
 
         try:
             if not interests or message in interests:
-                stamp = datetime.strptime(stream[:21], "%Y%m%d%H%M%S.%f")
+                stamp = float(stream[:17])
                 kargs = {}
                 while offset < len(stream) - 1:
                     offset = _ignore_seperator(offset, stream)
@@ -235,7 +234,7 @@ def bz2parse(filename, interests=()):
     """
     Parse the content of bz2 encoded FILENAME.
 
-    Yields a (LINENO, DATETIME, MESSAGE, KARGS) tuple for each line in the file.
+    Yields a (LINENO, TIMESTAMP, MESSAGE, KARGS) tuple for each line in the file.
     """
     assert isinstance(filename, (str, unicode))
     assert isinstance(interests, (tuple, list, set))
@@ -246,7 +245,7 @@ def parse(filename, interests=()):
     """
     Parse the content of FILENAME.
 
-    Yields a (LINENO, DATETIME, MESSAGE, KARGS) tuple for each line in
+    Yields a (LINENO, TIMESTAMP, MESSAGE, KARGS) tuple for each line in
     the file.
     """
     assert isinstance(filename, (str, unicode))
