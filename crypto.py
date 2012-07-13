@@ -93,16 +93,22 @@ else:
 
     from hashlib import sha1, sha224, sha256, sha512, md5
     from math import ceil
-    from struct import pack
+    from struct import Struct
     import M2Crypto
 
-    # We want to provide a few default curves.  We will change these
-    # curves as new become available and old ones to small to provide
-    # sufficient security.
-    _curves = {u"very-low":M2Crypto.EC.NID_sect163k1,
-               u"low":M2Crypto.EC.NID_sect233k1,
-               u"medium":M2Crypto.EC.NID_sect409k1,
-               u"high":M2Crypto.EC.NID_sect571r1}
+    # Allow all available curves.
+    _curves = dict((unicode(curve), getattr(M2Crypto.EC, curve)) for curve in dir(M2Crypto.EC) if curve.startswith("NID_"))
+
+    # We want to provide a few default curves.  We will change these curves as new become available
+    # and old ones to small to provide sufficient security.
+    _curves.update({u"very-low":M2Crypto.EC.NID_sect163k1,
+                    u"low":M2Crypto.EC.NID_sect233k1,
+                    u"medium":M2Crypto.EC.NID_sect409k1,
+                    u"high":M2Crypto.EC.NID_sect571r1})
+
+    # M2Crypto deliverers signatures in NSA.1 encoding.  This means it is prefixed (among other
+    # things) with a 4 byte unsigned integer to indicate the length of the 'payload'.
+    _struct_L = Struct(">L")
 
     def _progress(*args):
         "Called when no feedback needs to be given."
@@ -212,17 +218,22 @@ else:
         """
         length = int(ceil(len(ec) / 8.0))
         r, s = ec.sign_dsa(digest)
-        return "\x00" * (length - len(r) + 4) + r[4:] + "\x00" * (length - len(s) + 4) + s[4:]
+
+        length_r, = _struct_L.unpack_from(r)
+        length_s, = _struct_L.unpack_from(s)
+
+        return "".join(("\x00" * (length - len(r) + 4), r[-min(length_r, length):],
+                        "\x00" * (length - len(s) + 4), s[-min(length_s, length):]))
 
     def ec_verify(ec, digest, signature):
         """
         Returns True when SIGNATURE matches the DIGEST made using EC.
         """
-        assert len(signature) == ec_signature_length(ec)
+        assert len(signature) == ec_signature_length(ec), [len(signature), ec_signature_length(ec)]
         length = len(signature) / 2
-        prefix = pack("!L", length)
+        prefix = _struct_L.pack(length + 1)
         try:
-            return bool(ec.verify_dsa(digest, prefix + signature[:length], prefix + signature[length:]))
+            return bool(ec.verify_dsa(digest, "".join((prefix, "\x00", signature[:length])), "".join((prefix, "\x00", signature[length:]))))
         except:
             return False
 
@@ -309,6 +320,7 @@ if __name__ == "__main__":
         public_pem = ec_to_public_pem(ec)
         public_bin = ec_to_public_bin(ec)
         private_bin = ec_to_private_bin(ec)
+        print
         print "generated:", time.ctime()
         print "curve:", curve, "<<<", EC_name(_curves[curve]), ">>>"
         print "len:", len(ec), "bits ~", ec_signature_length(ec), "bytes signature"
@@ -318,7 +330,6 @@ if __name__ == "__main__":
         print "prv-sha1", sha1(private_bin).digest().encode("HEX")
         print public_pem.strip()
         print private_pem.strip()
-        print
 
         ec2 = ec_from_public_pem(public_pem)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
