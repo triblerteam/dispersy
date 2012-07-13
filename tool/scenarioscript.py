@@ -15,6 +15,7 @@ from ..crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from ..dprint import dprint
 from ..member import Member
 from ..script import ScriptBase
+from .ldecoder import Parser, NextFile
 
 class ScenarioScript(ScriptBase):
     def __init__(self, *args, **kargs):
@@ -22,6 +23,8 @@ class ScenarioScript(ScriptBase):
         self._master_member = None
         self._community = None
         self._process = Process(getpid()) if self.enable_cpu_statistics or self.enable_memory_statistics else None
+
+        self.log("scenario-init", peernumber=int(self._kargs["peernumber"]), hostname=uname()[1])
 
         if self.enable_cpu_statistics:
             self._dispersy.callback.register(self._periodically_log_cpu_statistics)
@@ -93,9 +96,8 @@ class ScenarioScript(ScriptBase):
         pass
 
     def _periodically_log_cpu_statistics(self):
-        hostname = uname()[1]
         while True:
-            self.log("scenario-cpu", hostname=hostname, percentage=cpu_percent(interval=0, percpu=True))
+            self.log("scenario-cpu", percentage=cpu_percent(interval=0, percpu=True))
             yield self.enable_cpu_statistics
 
     def _periodically_log_memory_statistics(self):
@@ -106,8 +108,9 @@ class ScenarioScript(ScriptBase):
 
     def _periodically_log_bandwidth_statistics(self):
         while True:
-            up, down = self._dispersy.endpoint.total_up, self._dispersy.endpoint.total_down
-            self.log("scenario-bandwidth", up=up, down=down)
+            self.log("scenario-bandwidth",
+                     up=self._dispersy.endpoint.total_up, down=self._dispersy.endpoint.total_down,
+                     drop=self._dispersy.statistics.drop_count, success=self._dispersy.statistics.success_count)
             yield self.enable_bandwidth_statistics
 
     def _periodically_log_io_statistics(self):
@@ -352,3 +355,104 @@ class ScenarioChurn(object):
                 self.log("scenario-churn", state="offline", chance=chance)
                 self._community.unload_community()
                 self._community = None
+
+class ScenarioParser1(Parser):
+    def __init__(self, database):
+        super(ScenarioParser1, self).__init__()
+
+        self.db = database
+        self.cur = database.cursor()
+        self.cur.execute(u"CREATE TABLE peer (id INTEGER PRIMARY KEY, hostname TEXT, mid BLOB)")
+
+        self.peer_id = 0
+
+        self.mapto(self.scenario_init, "scenario-init")
+        self.mapto(self.scenario_start, "scenario-start")
+
+    def scenario_init(self, timestamp, name, peernumber, hostname):
+        self.peer_id = peernumber
+        self.cur.execute(u"INSERT INTO peer (id, hostname) VALUES (?, ?)", (peernumber, hostname))
+
+    def scenario_start(self, timestamp, name, my_member, master_member, classification):
+        self.cur.execute(u"UPDATE peer SET mid = ? WHERE id = ?", (buffer(my_member), self.peer_id))
+        raise NextFile()
+
+    def parse_directory(self, *args, **kargs):
+        try:
+            super(ScenarioParser1, self).parse_directory(*args, **kargs)
+        finally:
+            self.db.commit()
+
+class ScenarioParser2(Parser):
+    def __init__(self, database):
+        super(ScenarioParser2, self).__init__()
+
+        self.db = database
+        self.cur = database.cursor()
+        self.cur.execute(u"CREATE TABLE cpu (timestamp INTEGER, peer INTEGER, percentage FLOAT)")
+        self.cur.execute(u"CREATE TABLE memory (timestamp INTEGER, peer INTEGER, rss INTEGER, vms INTEGER)")
+        self.cur.execute(u"CREATE TABLE bandwidth (timestamp INTEGER, peer INTEGER, up INTEGER, down INTEGER, loss INTEGER, success INTEGER, up_rate INTEGER, down_rate INTEGER)")
+
+        self.mid_cache = {}
+        self.hostname = ""
+        self.mid = ""
+        self.peer_id = 0
+        self.bandwidth_timestamp = 0
+        self.bandwidth_up = 0
+        self.bandwidth_down = 0
+
+        self.mapto(self.scenario_init, "scenario-init")
+        self.mapto(self.scenario_start, "scenario-start")
+        self.mapto(self.scenario_cpu, "scenario-cpu")
+        self.mapto(self.scenario_memory, "scenario-memory")
+        self.mapto(self.scenario_bandwidth, "scenario-bandwidth")
+
+    def start_parser(self, filename):
+        """Called once before starting to parse FILENAME"""
+        super(ScenarioParser2, self).start_parser(filename)
+        self.bandwidth_timestamp = 0
+        self.bandwidth_up = 0
+        self.bandwidth_down = 0
+
+    def get_peer_id_from_mid(self, mid):
+        try:
+            return self.mid_cache[mid]
+        except KeyError:
+            try:
+                peer_id, = self.cur.execute(u"SELECT id FROM peer WHERE mid = ?", (buffer(mid),)).next()
+            except StopIteration:
+                raise ValueError(mid)
+            else:
+                if peer_id is None:
+                    raise ValueError(mid)
+                else:
+                    self.mid_cache[mid] = peer_id
+                    return peer_id
+
+    def scenario_init(self, timestamp, _, peernumber, hostname):
+        self.hostname = hostname
+        self.peer_id = peernumber
+        self.bandwidth_timestamp = timestamp
+
+    def scenario_start(self, timestamp, _, my_member, master_member, classification):
+        self.mid = my_member
+
+    def scenario_cpu(self, timestamp, _, percentage):
+        self.cur.execute(u"INSERT INTO cpu (timestamp, peer, percentage) VALUES (?, ?, ?)", (timestamp, self.peer_id, sum(percentage) / len(percentage)))
+
+    def scenario_memory(self, timestamp, _, vms, rss):
+        self.cur.execute(u"INSERT INTO memory (timestamp, peer, rss, vms) VALUES (?, ?, ?, ?)", (timestamp, self.peer_id, rss, vms))
+
+    def scenario_bandwidth(self, timestamp, _, down, up, drop, success):
+        delta = timestamp - self.bandwidth_timestamp
+        self.cur.execute(u"INSERT INTO bandwidth (timestamp, peer, up, down, loss, success, up_rate, down_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                         (timestamp, self.peer_id, up, down, drop, success, (up-self.bandwidth_up)/delta, (down-self.bandwidth_down)/delta))
+        self.bandwidth_timestamp = timestamp
+        self.bandwidth_up = up
+        self.bandwidth_down = down
+
+    def parse_directory(self, *args, **kargs):
+        try:
+            super(ScenarioParser2, self).parse_directory(*args, **kargs)
+        finally:
+            self.db.commit()

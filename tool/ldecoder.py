@@ -1,6 +1,6 @@
-#!/usr/bin/python
-
 from bz2 import BZ2File
+from os import walk
+from os.path import join
 
 class NotInterested(Exception):
     pass
@@ -252,6 +252,59 @@ def parse(filename, interests=()):
     assert isinstance(interests, (tuple, list, set))
     assert all(isinstance(interest, str) for interest in interests)
     return _parse(open(filename, "r"), set(interests))
+
+class NextFile(Exception):
+    pass
+
+class Parser(object):
+    def __init__(self, verbose=True):
+        self.verbose = verbose
+        self.filename = ""
+        self.progress = 0
+        self.mapping = {}
+
+    def mapto(self, func, *messages):
+        for message in messages:
+            if not message in self.mapping:
+                self.mapping[message] = []
+            self.mapping[message].append(func)
+
+    def unknown(self, _, name, **kargs):
+        if self.verbose:
+            print "# unknown log entry '%s'" % name, "[%s]" % ", ".join(kargs.iterkeys())
+        self.mapping[name] = [self.ignore]
+
+    def ignore(self, stamp, _, **kargs):
+        pass
+
+    def start_parser(self, filename):
+        """Called once before starting to parse FILENAME"""
+        self.filename = filename
+        self.progress += 1
+
+    def stop_parser(self, lineno):
+        """Called once when finished parsing LINENO lines"""
+        if self.verbose:
+            print "#", self.progress, self.filename, "->", lineno, "lines"
+
+    def parse_directory(self, directory, filename, bzip2=False, unknown=False):
+        parser = bz2parse if bzip2 else parse
+        interests = () if unknown else set(self.mapping.keys())
+        unknown = [self.unknown]
+
+        for directory, _, filenames in walk(directory):
+            if filename in filenames:
+                filepath = join(directory, filename)
+
+                self.start_parser(filepath)
+                lineno = 0
+                try:
+                    for lineno, timestamp, name, kargs in parser(filepath, interests):
+                        for func in self.mapping.get(name, unknown):
+                            func(timestamp, name, **kargs)
+                except NextFile:
+                    pass
+                self.stop_parser(lineno)
 
 _valid_key_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_"
 _decode_mapping = {"s":_decode_str,
