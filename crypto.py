@@ -93,22 +93,18 @@ else:
 
     from hashlib import sha1, sha224, sha256, sha512, md5
     from math import ceil
-    from struct import Struct
-    import M2Crypto
+    from M2Crypto.m2 import bn_to_bin, bin_to_bn, bn_to_mpi, mpi_to_bn
+    from M2Crypto import EC, BIO
 
     # Allow all available curves.
-    _curves = dict((unicode(curve), getattr(M2Crypto.EC, curve)) for curve in dir(M2Crypto.EC) if curve.startswith("NID_"))
+    _curves = dict((unicode(curve), getattr(EC, curve)) for curve in dir(EC) if curve.startswith("NID_"))
 
     # We want to provide a few default curves.  We will change these curves as new become available
     # and old ones to small to provide sufficient security.
-    _curves.update({u"very-low":M2Crypto.EC.NID_sect163k1,
-                    u"low":M2Crypto.EC.NID_sect233k1,
-                    u"medium":M2Crypto.EC.NID_sect409k1,
-                    u"high":M2Crypto.EC.NID_sect571r1})
-
-    # M2Crypto deliverers signatures in NSA.1 encoding.  This means it is prefixed (among other
-    # things) with a 4 byte unsigned integer to indicate the length of the 'payload'.
-    _struct_L = Struct(">L")
+    _curves.update({u"very-low":EC.NID_sect163k1,
+                    u"low":EC.NID_sect233k1,
+                    u"medium":EC.NID_sect409k1,
+                    u"high":EC.NID_sect571r1})
 
     def _progress(*args):
         "Called when no feedback needs to be given."
@@ -134,7 +130,7 @@ else:
         """
         assert isinstance(security, unicode)
         assert security in _curves
-        ec = M2Crypto.EC.gen_params(_curves[security])
+        ec = EC.gen_params(_curves[security])
         ec.gen_key()
         return ec
 
@@ -154,13 +150,13 @@ else:
         "Get the private key in PEM format."
         def get_password(*args):
             return password or ""
-        bio = M2Crypto.BIO.MemoryBuffer()
+        bio = BIO.MemoryBuffer()
         ec.save_key_bio(bio, cipher, get_password)
         return bio.read_all()
 
     def ec_to_public_pem(ec):
         "Get the public key in PEM format."
-        bio = M2Crypto.BIO.MemoryBuffer()
+        bio = BIO.MemoryBuffer()
         ec.save_pub_key_bio(bio)
         return bio.read_all()
 
@@ -168,11 +164,11 @@ else:
         "Get the EC from a private PEM."
         def get_password(*args):
             return password or ""
-        return M2Crypto.EC.load_key_bio(M2Crypto.BIO.MemoryBuffer(pem), get_password)
+        return EC.load_key_bio(BIO.MemoryBuffer(pem), get_password)
 
     def ec_from_public_pem(pem):
         "Get the EC from a public PEM."
-        return M2Crypto.EC.load_pub_key_bio(M2Crypto.BIO.MemoryBuffer(pem))
+        return EC.load_pub_key_bio(BIO.MemoryBuffer(pem))
 
     def ec_to_private_bin(ec):
         "Get the private key in binary format."
@@ -216,14 +212,13 @@ else:
         """
         Returns the signature of DIGEST made using EC.
         """
-        length = int(ceil(len(ec) / 8.0))
         r, s = ec.sign_dsa(digest)
+        # convert r and s from their MPI representation into BigNum into binary strings
+        r = bn_to_bin(mpi_to_bn(r))
+        s = bn_to_bin(mpi_to_bn(s))
 
-        length_r, = _struct_L.unpack_from(r)
-        length_s, = _struct_L.unpack_from(s)
-
-        return "".join(("\x00" * (length - len(r) + 4), r[-min(length_r, length):],
-                        "\x00" * (length - len(s) + 4), s[-min(length_s, length):]))
+        length = int(ceil(len(ec) / 8.0))
+        return "".join(("\x00" * (length - len(r)), r, "\x00" * (length - len(s)), s))
 
     def ec_verify(ec, digest, signature):
         """
@@ -231,9 +226,8 @@ else:
         """
         assert len(signature) == ec_signature_length(ec), [len(signature), ec_signature_length(ec)]
         length = len(signature) / 2
-        prefix = _struct_L.pack(length + 1)
         try:
-            return bool(ec.verify_dsa(digest, "".join((prefix, "\x00", signature[:length])), "".join((prefix, "\x00", signature[length:]))))
+            return bool(ec.verify_dsa(digest, bn_to_mpi(bin_to_bn(signature[:length])), bn_to_mpi(bin_to_bn(signature[length:]))))
         except:
             return False
 
@@ -307,14 +301,14 @@ else:
 if __name__ == "__main__":
     def EC_name(curve):
         assert isinstance(curve, int)
-        for name in dir(M2Crypto.EC):
-            value = getattr(M2Crypto.EC, name)
+        for name in dir(EC):
+            value = getattr(EC, name)
             if isinstance(value, int) and value == curve:
                 return name
 
     import math
     import time
-    for curve in [u"very-low", u"low", u"medium", u"high"]:
+    for curve in _curves.iterkeys(): #[u"very-low", u"low", u"medium", u"high"]:
         ec = ec_generate_key(curve)
         private_pem = ec_to_private_pem(ec)
         public_pem = ec_to_public_pem(ec)
@@ -333,6 +327,8 @@ if __name__ == "__main__":
 
         ec2 = ec_from_public_pem(public_pem)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
+        break
+
         ec2 = ec_from_private_pem(private_pem)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
         ec2 = ec_from_public_bin(public_bin)
