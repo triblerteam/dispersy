@@ -217,6 +217,8 @@ class Statistics(object):
         self._walk_attempt = 0
         self._walk_success = 0
         self._walk_reset = 0
+        self.drop_count = 0
+        self.success_count = 0
         if __debug__:
             self._drop = {}
             self._delay = {}
@@ -241,6 +243,8 @@ class Statistics(object):
                     "walk_success":self._walk_success,
                     "walk_reset":self._walk_reset,
                     "walk_fail":self._walk_fail,
+                    "drop_count":self.drop_count,
+                    "success_count":self.success_count,
                     "attachment":self._attachment}
 
         else:
@@ -249,7 +253,9 @@ class Statistics(object):
                     "runtime":time() - self._start,
                     "walk_attempt":self._walk_attempt,
                     "walk_success":self._walk_success,
-                    "walk_reset":self._walk_reset}
+                    "walk_reset":self._walk_reset,
+                    "drop_count":self.drop_count,
+                    "success_count":self.success_count}
 
     def reset(self):
         """
@@ -263,6 +269,8 @@ class Statistics(object):
             self._walk_attempt = 0
             self._walk_success = 0
             self._walk_reset = 0
+            self.drop_count = 0
+            self.success_count = 0
             if __debug__:
                 self._drop = {}
                 self._delay = {}
@@ -1894,6 +1902,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("drop: ", message.dropped.name, " (", message, ")", level="warning")
                     self._statistics.drop("on_message_batch:%s" % message, len(message.dropped.packet))
+                self._statistics.drop_count += 1
                 return False
 
             else:
@@ -1940,6 +1949,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             dprint("in... ", len(messages), " ", meta.name, " messages from ", ", ".join(str(candidate) for candidate in set(message.candidate for message in messages)))
             self._statistics.success(meta.name, sum(len(message.packet) for message in messages), len(messages))
         self.store_update_forward(messages, True, True, False)
+        self._statistics.success_count += len(messages)
 
         # tell what happened
         if __debug__:
@@ -1986,6 +1996,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown community) from ", candidate, level="warning")
                     self._statistics.drop("_convert_packets_into_batch:unknown community", len(packet))
+                self._statistics.drop_count += 1
                 continue
 
             # find associated conversion
@@ -1995,6 +2006,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown conversion) from ", candidate, level="warning")
                     self._statistics.drop("_convert_packets_into_batch:unknown conversion", len(packet))
+                self._statistics.drop_count += 1
                 continue
 
             try:
@@ -2005,6 +2017,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception,") from ", candidate, level="warning")
                     self._statistics.drop("_convert_packets_into_batch:decode_meta_message:%s" % exception, len(packet))
+                self._statistics.drop_count += 1
 
     def _convert_batch_into_messages(self, batch):
         if __debug__:
@@ -2028,6 +2041,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception, ") from ", candidate, level="warning")
                     self._statistics.drop("_convert_batch_into_messages:%s" % exception, len(packet))
+                self._statistics.drop_count += 1
 
             except DelayPacket, delay:
                 if __debug__:
@@ -4620,9 +4634,10 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # 3.4: added info["walk_reset"]
         # 3.4: added info["attachment"] in __debug__ mode
         # 3.5: added info["revision"]
+        # 3.6: added info["success_count"] and info["drop_count"]
 
         now = time()
-        info = {"version":3.4,
+        info = {"version":3.6,
                 "class":"Dispersy",
                 "lan_address":self._lan_address,
                 "wan_address":self._wan_address,
