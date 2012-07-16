@@ -2087,7 +2087,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             assert message.authentication.is_signed
             assert not message.packet[-10:] == "\x00" * 10, message.packet[-10:].encode("HEX")
             # we must have the identity message as well
-            assert message.name == u"dispersy-identity" or message.authentication.member.has_identity(message.community), [message, message.community, message.authentication.member.database_id]
+            assert message.authentication.encoding == "bin" or message.authentication.member.has_identity(message.community), [message, message.community, message.authentication.member.database_id]
 
             if __debug__: dprint(message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time)
 
