@@ -2337,7 +2337,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
             assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
             return lan_address, ("0.0.0.0", 0)
 
-    def take_step(self, community):
+    def take_step(self, community, allow_sync):
         if community.cid in self._communities:
             try:
                 candidate = self.yield_walk_candidates(community).next()
@@ -2355,7 +2355,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
             else:
                 assert community.my_member.private_key
                 if __debug__: dprint(community.cid.encode("HEX"), " ", community.get_classification(), " taking step towards ", candidate)
-                community.create_introduction_request(candidate)
+                community.create_introduction_request(candidate, allow_sync)
                 return True
 
     def handle_missing_messages(self, messages, *classes):
@@ -2369,7 +2369,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     for response_func, response_args in cache.callbacks:
                         response_func(message, *response_args)
 
-    def create_introduction_request(self, community, destination, forward=True):
+    def create_introduction_request(self, community, destination, allow_sync, forward=True):
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
 
         self._statistics.increment_walk_attempt()
@@ -2383,7 +2383,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         advice = True
 
         # obtain sync range
-        if isinstance(destination, BootstrapCandidate):
+        if not allow_sync or isinstance(destination, BootstrapCandidate):
             # do not request a sync when we connecting to a bootstrap candidate
             sync = None
 
@@ -3492,11 +3492,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             old_submsg = cache.request.payload.message
             new_submsg = message.payload.message
 
-            if not old_submsg.meta is new_submsg.meta:
+            if not old_submsg.meta == new_submsg.meta:
                 yield DropMessage(message, "meta message may not change")
                 continue
 
-            if not old_submsg.authentication.member is new_submsg.authentication.member:
+            if not old_submsg.authentication.member == new_submsg.authentication.member:
                 yield DropMessage(message, "first member may not change")
                 continue
 
@@ -3523,27 +3523,21 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             # get cache object linked to this request and stop timeout from occurring
             cache = self._request_cache.pop(message.payload.identifier, SignatureRequestCache)
 
-            if __debug__: dprint("response")
             old_submsg = cache.request.payload.message
             new_submsg = message.payload.message
+            if __debug__: dprint("response ", new_submsg)
 
             old_body = old_submsg.packet[:len(old_submsg.packet) - sum([member.signature_length for member in old_submsg.authentication.members])]
             new_body = new_submsg.packet[:len(new_submsg.packet) - sum([member.signature_length for member in new_submsg.authentication.members])]
 
             if cache.response_func(cache, new_submsg, old_body != new_body, *cache.response_args):
-                # see if we are missing more external signatures
+                # add our own signatures and we can handle the message
                 for signature, member in new_submsg.authentication.signed_members:
-                    if not (signature or member.private_key):
-                        break
+                    if not signature and member.private_key:
+                        new_submsg.authentication.set_signature(member, member.sign(new_body))
 
-                else:
-                    # did not break, hence we have all external signatures.  add our own signatures
-                    # and we can handle the message
-                    for signature, member in new_submsg.authentication.signed_members:
-                        if not signature and member.private_key:
-                            new_submsg.authentication.set_signature(member, member.sign(new_body))
-
-                    self.store_update_forward([new_submsg], True, True, True)
+                assert new_submsg.authentication.is_signed
+                self.store_update_forward([new_submsg], True, True, True)
 
     def create_missing_sequence(self, community, candidate, member, message, missing_low, missing_high, response_func=None, response_args=(), timeout=10.0):
         # ensure that the identifier is 'triggered' somewhere, i.e. using
@@ -4437,7 +4431,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         """
         while True:
             try:
-                yield 5 * 60.0
+                yield 60.0
 
                 # flush changes to disk every 1 minutes
                 self._database.commit()
@@ -4468,24 +4462,34 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             START = start
             DELAY = 0.0
             for community in walker_communities:
-                community.__MOST_RESENT_WALK = 0.0
+                community.__MOST_RECENT_WALK = 0.0
+
+        for community in walker_communities:
+            community.__most_recent_walk = 0.0
 
         while True:
             community = walker_communities.pop(0)
             walker_communities.append(community)
 
+            actualtime = time()
+            stepdiff = actualtime - community.__most_recent_walk
+            community.__most_recent_walk = actualtime
+
+            # if stepdiff < 4.5:
+            #     print "stepdiff", stepdiff, "(skip sync)"
+
             if __debug__:
                 NOW = time()
                 OPTIMALSTEPS = (NOW - START) / optimaldelay
-                STEPDIFF = NOW - community.__MOST_RESENT_WALK
-                community.__MOST_RESENT_WALK = NOW
+                STEPDIFF = NOW - community.__MOST_RECENT_WALK
+                community.__MOST_RECENT_WALK = NOW
                 dprint(community.cid.encode("HEX"), " taking step every ", "%.2f" % DELAY, " sec in ", len(walker_communities), " communities.  steps: ", STEPS, "/", int(OPTIMALSTEPS), " ~ %.2f." % (-1.0 if OPTIMALSTEPS == 0.0 else (STEPS / OPTIMALSTEPS)), "  diff: %.1f" % STEPDIFF, ".  resets: ", RESETS)
                 STEPS += 1
 
             # walk
             assert community.dispersy_enable_candidate_walker
             assert community.dispersy_enable_candidate_walker_responses
-            community.dispersy_take_step()
+            community.dispersy_take_step(stepdiff >= 4.5)
             steps += 1
 
             optimaltime = start + steps * optimaldelay
