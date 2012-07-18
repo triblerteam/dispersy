@@ -40,7 +40,6 @@ def main(setup=None):
 
     # define options
     command_line_parser = optparse.OptionParser()
-    command_line_parser.add_option("--quiet", action="store_true", help="suppress non-warning and non-error output", default=False)
     command_line_parser.add_option("--profiler", action="store_true", help="use cProfile on the Dispersy thread", default=False)
     command_line_parser.add_option("--statedir", action="store", type="string", help="Use an alternate statedir", default=u".")
     command_line_parser.add_option("--ip", action="store", type="string", default="0.0.0.0", help="Dispersy uses this ip")
@@ -60,8 +59,6 @@ def main(setup=None):
     if not opt.script:
         command_line_parser.print_help()
         exit(1)
-    if not opt.quiet:
-        print "Press Ctrl-C to stop Dispersy"
 
     # setup
     callback = Callback()
