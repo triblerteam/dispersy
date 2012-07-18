@@ -308,7 +308,7 @@ if __name__ == "__main__":
 
     import math
     import time
-    for curve in _curves.iterkeys(): #[u"very-low", u"low", u"medium", u"high"]:
+    for curve in [u"very-low", u"low", u"medium", u"high"]:
         ec = ec_generate_key(curve)
         private_pem = ec_to_private_pem(ec)
         public_pem = ec_to_public_pem(ec)
@@ -327,8 +327,6 @@ if __name__ == "__main__":
 
         ec2 = ec_from_public_pem(public_pem)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
-        break
-
         ec2 = ec_from_private_pem(private_pem)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
         ec2 = ec_from_public_bin(public_bin)
