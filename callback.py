@@ -154,7 +154,7 @@ class Callback(object):
                 dprint(exception=True, level="error")
                 assert False, "the exception handler should not cause an exception"
 
-    def register(self, call, args=(), kargs=None, delay=0.0, priority=0, id_="", callback=None, callback_args=(), callback_kargs=None):
+    def register(self, call, args=(), kargs=None, delay=0.0, priority=0, id_="", callback=None, callback_args=(), callback_kargs=None, include_id=False):
         """
         Register CALL to be called.
 
@@ -183,6 +183,9 @@ class Callback(object):
         exception.  If CALLBACK_ARGS is given it will be appended to the first argument.  If
         CALLBACK_KARGS is given it is added to the callback as keyword arguments.
 
+        When INCLUDE_ID is True then ID_ or the generated identifier is given as the first argument
+        to CALL.
+
         Returns ID_ if specified or a uniquely generated numerical identifier
 
         Example:
@@ -207,6 +210,7 @@ class Callback(object):
         assert callback is None or callable(callback), "CALLBACK must be None or callable"
         assert isinstance(callback_args, tuple), "CALLBACK_ARGS has invalid type: %s" % type(callback_args)
         assert callback_kargs is None or isinstance(callback_kargs, dict), "CALLBACK_KARGS has invalid type: %s" % type(callback_kargs)
+        assert isinstance(include_id, bool), "INCLUDE_ID has invalid type: %d" % type(include_id)
         if __debug__: dprint("register ", call, " after ", delay, " seconds")
 
         with self._lock:
@@ -219,7 +223,7 @@ class Callback(object):
                          (-priority,
                           id_,
                           None,
-                          (call, args, {} if kargs is None else kargs),
+                          (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                           None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
             else:
@@ -227,7 +231,7 @@ class Callback(object):
                          (delay + time(),
                           -priority,
                           id_,
-                          (call, args, {} if kargs is None else kargs),
+                          (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                           None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
             # wakeup if sleeping
@@ -235,7 +239,7 @@ class Callback(object):
                 self._event_set()
             return id_
 
-    def persistent_register(self, id_, call, args=(), kargs=None, delay=0.0, priority=0, callback=None, callback_args=(), callback_kargs=None):
+    def persistent_register(self, id_, call, args=(), kargs=None, delay=0.0, priority=0, callback=None, callback_args=(), callback_kargs=None, include_id=False):
         """
         Register CALL to be called only if ID_ has not already been registered.
 
@@ -261,6 +265,7 @@ class Callback(object):
         assert callback is None or callable(callback), "CALLBACK must be None or callable"
         assert isinstance(callback_args, tuple), "CALLBACK_ARGS has invalid type: %s" % type(callback_args)
         assert callback_kargs is None or isinstance(callback_kargs, dict), "CALLBACK_KARGS has invalid type: %s" % type(callback_kargs)
+        assert isinstance(include_id, bool), "INCLUDE_ID has invalid type: %d" % type(include_id)
         if __debug__: dprint("persistent register ", call, " after ", delay, " seconds")
 
         with self._lock:
@@ -281,7 +286,7 @@ class Callback(object):
                                  (-priority,
                                   id_,
                                   None,
-                                  (call, args, {} if kargs is None else kargs),
+                                  (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                                   None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
                     else:
@@ -289,7 +294,7 @@ class Callback(object):
                                  (delay + time(),
                                   -priority,
                                   id_,
-                                  (call, args, {} if kargs is None else kargs),
+                                  (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                                   None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
                     # wakeup if sleeping
@@ -298,7 +303,7 @@ class Callback(object):
 
             return id_
 
-    def replace_register(self, id_, call, args=(), kargs=None, delay=0.0, priority=0, callback=None, callback_args=(), callback_kargs=None):
+    def replace_register(self, id_, call, args=(), kargs=None, delay=0.0, priority=0, callback=None, callback_args=(), callback_kargs=None, include_id=False):
         """
         Replace (if present) the currently registered call ID_ with CALL.
 
@@ -315,6 +320,7 @@ class Callback(object):
         assert callback is None or callable(callback), "CALLBACK must be None or callable"
         assert isinstance(callback_args, tuple), "CALLBACK_ARGS has invalid type: %s" % type(callback_args)
         assert callback_kargs is None or isinstance(callback_kargs, dict), "CALLBACK_KARGS has invalid type: %s" % type(callback_kargs)
+        assert isinstance(include_id, bool), "INCLUDE_ID has invalid type: %d" % type(include_id)
         if __debug__: dprint("replace register ", call, " after ", delay, " seconds")
         with self._lock:
             # un-register
@@ -334,7 +340,7 @@ class Callback(object):
                          (-priority,
                           id_,
                           None,
-                          (call, args, {} if kargs is None else kargs),
+                          (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                           None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
             else:
@@ -342,7 +348,7 @@ class Callback(object):
                          (delay + time(),
                           -priority,
                           id_,
-                          (call, args, {} if kargs is None else kargs),
+                          (call, args + (id_,) if include_id else args, {} if kargs is None else kargs),
                           None if callback is None else (callback, callback_args, {} if callback_kargs is None else callback_kargs)))
 
             # wakeup if sleeping
@@ -369,7 +375,7 @@ class Callback(object):
                     self._expired_mirror[index] = (tup[0], id_, tup[2], None, None)
                     if __debug__: dprint("in _expired: ", id_)
 
-    def call(self, call, args=(), kargs=None, delay=0.0, priority=0, id_="", timeout=0.0, default=None):
+    def call(self, call, args=(), kargs=None, delay=0.0, priority=0, id_="", include_id=False, timeout=0.0, default=None):
         """
         Register a blocking CALL to be made, waits for the call to finish, and returns or raises the
         result.
@@ -381,7 +387,7 @@ class Callback(object):
         DEFAULT can be anything.  The DEFAULT value is returned when a TIMEOUT occurs.  When DEFAULT
         is an Exception instance it will be raised instead of returned.
 
-        For the arguments CALL, ARGS, KARGS, DELAY, PRIORITY, and ID_: see the register(...) method.
+        For the arguments CALL, ARGS, KARGS, DELAY, PRIORITY, ID_, and INCLUDE_ID: see the register(...) method.
         """
         assert isinstance(timeout, float)
         assert 0.0 <= timeout
@@ -402,7 +408,7 @@ class Callback(object):
             event = Event()
 
             # register the call
-            self.register(call, args, kargs, delay, priority, id_, callback)
+            self.register(call, args, kargs, delay, priority, id_, callback, (), None, include_id)
 
             # wait for call to finish
             event.wait(None if timeout == 0.0 else timeout)
