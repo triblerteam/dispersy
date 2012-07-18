@@ -22,34 +22,20 @@ class ScenarioScript(ScriptBase):
         super(ScenarioScript, self).__init__(*args, **kargs)
         self._master_member = None
         self._community = None
-        self._process = Process(getpid()) if self.enable_cpu_statistics or self.enable_memory_statistics else None
+        self._process = Process(getpid()) if self.enable_statistics or self.enable_statistics else None
 
         self.log("scenario-init", peernumber=int(self._kargs["peernumber"]), hostname=uname()[1])
 
-        if self.enable_cpu_statistics:
-            self._dispersy.callback.register(self._periodically_log_cpu_statistics)
-
-        if self.enable_memory_statistics:
-            self._dispersy.callback.register(self._periodically_log_memory_statistics)
-
-        if self.enable_bandwidth_statistics:
-            self._dispersy.callback.register(self._periodically_log_bandwidth_statistics)
+        if self.enable_statistics:
+            self._dispersy.callback.register(self._periodically_log_statistics)
 
     @property
     def enable_wait_for_wan_address(self):
         return False
 
     @property
-    def enable_cpu_statistics(self):
-        return 5.0
-
-    @property
-    def enable_memory_statistics(self):
-        return 5.0
-
-    @property
-    def enable_bandwidth_statistics(self):
-        return 5.0
+    def enable_statistics(self):
+        return 30.0
 
     def run(self):
         self.add_testcase(self._run_scenario)
@@ -95,29 +81,26 @@ class ScenarioScript(ScriptBase):
     def log(self, _message, **kargs):
         pass
 
-    def _periodically_log_cpu_statistics(self):
+    def _periodically_log_statistics(self):
         while True:
+            # CPU
             self.log("scenario-cpu", percentage=cpu_percent(interval=0, percpu=True))
-            yield self.enable_cpu_statistics
 
-    def _periodically_log_memory_statistics(self):
-        while True:
+            # memory
             rss, vms = self._process.get_memory_info()
             self.log("scenario-memory", rss=rss, vms=vms)
-            yield self.enable_memory_statistics
 
-    def _periodically_log_bandwidth_statistics(self):
-        while True:
+            # bandwidth
             self.log("scenario-bandwidth",
                      up=self._dispersy.endpoint.total_up, down=self._dispersy.endpoint.total_down,
                      drop=self._dispersy.statistics.drop_count, success=self._dispersy.statistics.success_count)
-            yield self.enable_bandwidth_statistics
 
-    def _periodically_log_io_statistics(self):
-        while True:
+            # IO usage
             read_count, write_count, read_bytes, write_bytes = self._process.get_io_counters()
             self.log("scenario-io", read_count=read_count, write_count=write_count, read_bytes=read_bytes, write_bytes=write_bytes)
-            yield self.enable_io_statistics
+
+            # wait
+            yield self.enable_statistics
 
     def parse_scenario(self):
         """
@@ -221,20 +204,20 @@ if poisson:
                 delay = poisson.rvs(self.__poisson_online_mu)
                 if self._community is None:
                     if __debug__: dprint("poisson wants us online for the next ", delay, " seconds")
-                    self.log("scenario-poisson", state="online", duration=delay)
+                    self.log("scenario-churn", state="online", duration=delay)
                     self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
                 else:
                     if __debug__: dprint("poisson wants us online for the next ", delay, " seconds (we are already online)")
-                    self.log("scenario-poisson", state="stay-online", duration=delay)
+                    self.log("scenario-churn", state="stay-online", duration=delay)
                 yield float(delay)
 
                 delay = poisson.rvs(self.__poisson_offline_mu)
                 if self._community is None:
                     if __debug__: dprint("poisson wants us offline for the next ", delay, " seconds (we are already offline)")
-                    self.log("scenario-poisson", state="stay-offline", duration=delay)
+                    self.log("scenario-churn", state="stay-offline", duration=delay)
                 else:
                     if __debug__: dprint("poisson wants us offline for the next ", delay, " seconds")
-                    self.log("scenario-poisson", state="offline", duration=delay)
+                    self.log("scenario-churn", state="offline", duration=delay)
                     self._community.unload_community()
                     self._community = None
                 yield float(delay)
@@ -242,6 +225,7 @@ if poisson:
         def scenario_poisson_churn(self, online_mu, offline_mu):
             self.__poisson_online_mu = float(online_mu)
             self.__poisson_offline_mu = float(offline_mu)
+            self.log("scenario-poisson-churn", online_mu=self.__poisson_online_mu, offline_mu=self.__poisson_offline_mu)
             self._dispersy.callback.persistent_register("scenario-poisson-identifier", self.__poisson_churn)
 
 if expon:
@@ -263,11 +247,11 @@ if expon:
                     delay = min(self.__expon_max_online, max(self.__expon_min_online, delay))
                     if self._community is None:
                         if __debug__: dprint("expon wants us online for the next ", delay, " seconds")
-                        self.log("scenario-expon", state="online", duration=delay)
+                        self.log("scenario-churn", state="online", duration=delay)
                         self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
                     else:
                         if __debug__: dprint("expon wants us online for the next ", delay, " seconds (we are already online)")
-                        self.log("scenario-expon", state="stay-online", duration=delay)
+                        self.log("scenario-churn", state="stay-online", duration=delay)
                     yield float(delay)
 
                 delay = expon.rvs(scale=self.__expon_offline_beta)
@@ -275,10 +259,10 @@ if expon:
                     delay = min(self.__expon_max_offline, max(self.__expon_min_offline, delay))
                     if self._community is None:
                         if __debug__: dprint("expon wants us offline for the next ", delay, " seconds (we are already offline)")
-                        self.log("scenario-expon", state="stay-offline", duration=delay)
+                        self.log("scenario-churn", state="stay-offline", duration=delay)
                     else:
                         if __debug__: dprint("expon wants us offline for the next ", delay, " seconds")
-                        self.log("scenario-expon", state="offline", duration=delay)
+                        self.log("scenario-churn", state="offline", duration=delay)
                         self._community.unload_community()
                         self._community = None
                     yield float(delay)
@@ -307,20 +291,20 @@ class ScenarioUniform(object):
             delay = uniform(self.__uniform_online_low, self.__uniform_online_high)
             if self._community is None:
                 if __debug__: dprint("uniform wants us online for the next ", delay, " seconds")
-                self.log("scenario-uniform", state="online", duration=delay)
+                self.log("scenario-churn", state="online", duration=delay)
                 self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
             else:
                 if __debug__: dprint("uniform wants us online for the next ", delay, " seconds (we are already online)")
-                self.log("scenario-uniform", state="stay-online", duration=delay)
+                self.log("scenario-churn", state="stay-online", duration=delay)
             yield float(delay)
 
             delay = uniform(self.__uniform_offline_low, self.__uniform_offline_high)
             if self._community is None:
                 if __debug__: dprint("uniform wants us offline for the next ", delay, " seconds (we are already offline)")
-                self.log("scenario-uniform", state="stay-offline", duration=delay)
+                self.log("scenario-churn", state="stay-offline", duration=delay)
             else:
                 if __debug__: dprint("uniform wants us offline for the next ", delay, " seconds")
-                self.log("scenario-uniform", state="offline", duration=delay)
+                self.log("scenario-churn", state="offline", duration=delay)
                 self._community.unload_community()
                 self._community = None
             yield float(delay)
@@ -392,17 +376,21 @@ class ScenarioParser2(Parser):
         self.cur.execute(u"CREATE TABLE cpu (timestamp INTEGER, peer INTEGER, percentage FLOAT)")
         self.cur.execute(u"CREATE TABLE memory (timestamp INTEGER, peer INTEGER, rss INTEGER, vms INTEGER)")
         self.cur.execute(u"CREATE TABLE bandwidth (timestamp INTEGER, peer INTEGER, up INTEGER, down INTEGER, loss INTEGER, success INTEGER, up_rate INTEGER, down_rate INTEGER)")
+        self.cur.execute(u"CREATE TABLE churn (peer INTEGER, online INTEGER, offline INTEGER)")
 
         self.mid_cache = {}
         self.hostname = ""
         self.mid = ""
         self.peer_id = 0
+        self.online_timestamp = 0.0
         self.bandwidth_timestamp = 0
         self.bandwidth_up = 0
         self.bandwidth_down = 0
 
         self.mapto(self.scenario_init, "scenario-init")
         self.mapto(self.scenario_start, "scenario-start")
+        self.mapto(self.scenario_end, "scenario-end")
+        self.mapto(self.scenario_churn, "scenario-churn")
         self.mapto(self.scenario_cpu, "scenario-cpu")
         self.mapto(self.scenario_memory, "scenario-memory")
         self.mapto(self.scenario_bandwidth, "scenario-bandwidth")
@@ -410,6 +398,7 @@ class ScenarioParser2(Parser):
     def start_parser(self, filename):
         """Called once before starting to parse FILENAME"""
         super(ScenarioParser2, self).start_parser(filename)
+        self.online_timestamp = 0.0
         self.bandwidth_timestamp = 0
         self.bandwidth_up = 0
         self.bandwidth_down = 0
@@ -435,7 +424,21 @@ class ScenarioParser2(Parser):
         self.bandwidth_timestamp = timestamp
 
     def scenario_start(self, timestamp, _, my_member, master_member, classification):
+        self.online_timestamp = timestamp
         self.mid = my_member
+
+    def scenario_end(self, timestamp, _):
+        if self.online_timestamp:
+            self.cur.execute(u"INSERT INTO churn (peer, online, offline) VALUES (?, ?, ?)", (self.peer_id, self.online_timestamp, timestamp))
+
+    def scenario_churn(self, timestamp, _, state, **kargs):
+        if state == "online":
+            self.online_timestamp = timestamp
+
+        elif state == "offline":
+            assert self.online_timestamp
+            self.cur.execute(u"INSERT INTO churn (peer, online, offline) VALUES (?, ?, ?)", (self.peer_id, self.online_timestamp, timestamp))
+            self.online_timestamp = 0.0
 
     def scenario_cpu(self, timestamp, _, percentage):
         self.cur.execute(u"INSERT INTO cpu (timestamp, peer, percentage) VALUES (?, ?, ?)", (timestamp, self.peer_id, sum(percentage) / len(percentage)))
