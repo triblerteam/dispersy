@@ -4465,18 +4465,19 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 community.__MOST_RECENT_WALK = 0.0
 
         for community in walker_communities:
-            community.__most_recent_walk = 0.0
+            community.__most_recent_sync = 0.0
 
         while True:
             community = walker_communities.pop(0)
             walker_communities.append(community)
 
             actualtime = time()
-            stepdiff = actualtime - community.__most_recent_walk
-            community.__most_recent_walk = actualtime
+            allow_sync = actualtime - community.__most_recent_sync > 4.5
+            if allow_sync:
+                community.__most_recent_sync = actualtime
 
-            # if stepdiff < 4.5:
-            #     print "stepdiff", stepdiff, "(skip sync)"
+            # test difference...
+            # allow_sync = True
 
             if __debug__:
                 NOW = time()
@@ -4489,7 +4490,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             # walk
             assert community.dispersy_enable_candidate_walker
             assert community.dispersy_enable_candidate_walker_responses
-            community.dispersy_take_step(stepdiff >= 4.5)
+            community.dispersy_take_step(allow_sync)
             steps += 1
 
             optimaltime = start + steps * optimaldelay
