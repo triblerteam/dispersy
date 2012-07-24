@@ -14,8 +14,6 @@ from random import random, Random, randint
 from time import time
 
 from bloomfilter import BloomFilter
-from cache import CacheDict
-from candidate import LoopbackCandidate
 from conversion import BinaryConversion, DefaultConversion
 from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from decorator import documentation, runtime_duration_warning
