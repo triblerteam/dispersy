@@ -509,118 +509,124 @@ class Callback(object):
                 self._state = "STATE_RUNNING"
                 if __debug__: dprint("STATE_RUNNING")
 
-        try:
-            while 1:
-                actual_time = get_timestamp()
+        while 1:
+            actual_time = get_timestamp()
 
-                with lock:
-                    # check if we should continue to run
-                    if self._state != "STATE_RUNNING":
-                        break
+            with lock:
+                # check if we should continue to run
+                if self._state != "STATE_RUNNING":
+                    break
 
-                    # move expired requests from REQUESTS to EXPIRED
-                    while requests and requests[0][0] <= actual_time:
-                        # notice that the deadline and priority entries are switched, hence, the entries in
-                        # the EXPIRED list are ordered by priority instead of deadline
-                        _, priority, root_id, call, callback = heappop(requests)
-                        heappush(expired, (priority, root_id, None, call, callback))
+                # move expired requests from REQUESTS to EXPIRED
+                while requests and requests[0][0] <= actual_time:
+                    # notice that the deadline and priority entries are switched, hence, the entries in
+                    # the EXPIRED list are ordered by priority instead of deadline
+                    _, priority, root_id, call, callback = heappop(requests)
+                    heappush(expired, (priority, root_id, None, call, callback))
 
-                    if expired:
-                        if __debug__ and len(expired) > 10:
-                            if not time_since_expired:
-                                time_since_expired = actual_time
+                if expired:
+                    if __debug__ and len(expired) > 10:
+                        if not time_since_expired:
+                            time_since_expired = actual_time
 
-                        # we need to handle the next call in line
-                        priority, root_id, _, call, callback = heappop(expired)
-                        wait = 0.0
+                    # we need to handle the next call in line
+                    priority, root_id, _, call, callback = heappop(expired)
+                    wait = 0.0
 
-                        if __debug__:
-                            # 10/02/12 Boudewijn: in python 2.5 generators do not have .__name__
-                            if isinstance(call, TupleType):
-                                if isinstance(call[0], LambdaType):
-                                    self._debug_call_name = "lambda@%s:%d" % (getsourcefile(call[0])[-25:], getsourcelines(call[0])[1])
-                                else:
-                                    self._debug_call_name = call[0].__name__
-                            elif isinstance(call, GeneratorType):
-                                self._debug_call_name = call.__name__
+                    if __debug__:
+                        # 10/02/12 Boudewijn: in python 2.5 generators do not have .__name__
+                        if isinstance(call, TupleType):
+                            if isinstance(call[0], LambdaType):
+                                self._debug_call_name = "lambda@%s:%d" % (getsourcefile(call[0])[-25:], getsourcelines(call[0])[1])
                             else:
-                                self._debug_call_name = str(call)
+                                self._debug_call_name = call[0].__name__
+                        elif isinstance(call, GeneratorType):
+                            self._debug_call_name = call.__name__
+                        else:
+                            self._debug_call_name = str(call)
 
-                        # ignore removed tasks
-                        if call is None:
-                            continue
-
-                    else:
-                        # there is nothing to handle
-                        wait = requests[0][0] - actual_time if requests else 300.0
-                        if __debug__:
-                            dprint("nothing to handle, wait ", wait, " seconds")
-                            if time_since_expired:
-                                diff = actual_time - time_since_expired
-                                if diff > 1.0:
-                                    dprint("took ", round(diff, 2), " to process expired queue", level="warning")
-                                time_since_expired = 0
-
-                    if event_is_set():
-                        event_clear()
-
-                if wait:
-                    if __debug__: dprint("%d wait at most %.3fs before next call, still have %d calls in queue" % (time(), wait, len(requests)))
-                    event_wait(wait)
+                    # ignore removed tasks
+                    if call is None:
+                        continue
 
                 else:
+                    # there is nothing to handle
+                    wait = requests[0][0] - actual_time if requests else 300.0
                     if __debug__:
-                        dprint(self._debug_thread_name, " calling ", self._debug_call_name)
-                        debug_call_start = time()
+                        dprint("nothing to handle, wait ", wait, " seconds")
+                        if time_since_expired:
+                            diff = actual_time - time_since_expired
+                            if diff > 1.0:
+                                dprint("took ", round(diff, 2), " to process expired queue", level="warning")
+                            time_since_expired = 0
 
-                    # call can be either:
-                    # 1. a generator
-                    # 2. a (callable, args, kargs) tuple
+                if event_is_set():
+                    event_clear()
 
-                    try:
-                        if isinstance(call, TupleType):
-                            # callback
-                            result = call[0](*call[1], **call[2])
-                            if isinstance(result, GeneratorType):
-                                # we only received the generator, no actual call has been made to the
-                                # function yet, therefore we call it again immediately
-                                call = result
+            if wait:
+                if __debug__: dprint("%d wait at most %.3fs before next call, still have %d calls in queue" % (time(), wait, len(requests)))
+                event_wait(wait)
 
-                            elif callback:
-                                with lock:
-                                    heappush(expired, (priority, root_id, None, (callback[0], (result,) + callback[1], callback[2]), None))
+            else:
+                if __debug__:
+                    dprint(self._debug_thread_name, " calling ", self._debug_call_name)
+                    debug_call_start = time()
 
-                        if isinstance(call, GeneratorType):
-                            # start next generator iteration
-                            result = call.next()
-                            assert isinstance(result, float), type(result)
-                            assert result >= 0.0
-                            with lock:
-                                heappush(requests, (get_timestamp() + result, priority, root_id, call, callback))
+                # call can be either:
+                # 1. a generator
+                # 2. a (callable, args, kargs) tuple
 
-                    except StopIteration:
-                        if callback:
+                try:
+                    if isinstance(call, TupleType):
+                        # callback
+                        result = call[0](*call[1], **call[2])
+                        if isinstance(result, GeneratorType):
+                            # we only received the generator, no actual call has been made to the
+                            # function yet, therefore we call it again immediately
+                            call = result
+
+                        elif callback:
                             with lock:
                                 heappush(expired, (priority, root_id, None, (callback[0], (result,) + callback[1], callback[2]), None))
 
-                    except Exception, exception:
+                    if isinstance(call, GeneratorType):
+                        # start next generator iteration
+                        result = call.next()
+                        assert isinstance(result, float), type(result)
+                        assert result >= 0.0
+                        with lock:
+                            heappush(requests, (get_timestamp() + result, priority, root_id, call, callback))
+
+                except StopIteration:
+                    if callback:
+                        with lock:
+                            heappush(expired, (priority, root_id, None, (callback[0], (result,) + callback[1], callback[2]), None))
+
+                except (SystemExit, KeyboardInterrupt, GeneratorExit, AssertionError), exception:
+                    dprint("attempting proper shutdown", exception=True, level="error")
+                    with lock:
+                        self._state = "STATE_EXCEPTION"
+                        self._exception = exception
+                    self._call_exception_handlers(exception, True)
+
+                except Exception, exception:
+                    if callback:
+                        with lock:
+                            heappush(expired, (priority, root_id, None, (callback[0], (exception,) + callback[1], callback[2]), None))
+                    if __debug__:
+                        dprint("__debug__ only shutdown", exception=True, level="error")
+                        with lock:
+                            self._state = "STATE_EXCEPTION"
+                            self._exception = exception
+                        self._call_exception_handlers(exception, True)
+                    else:
                         dprint(exception=True, level="error")
-                        if callback:
-                            with lock:
-                                heappush(expired, (priority, root_id, None, (callback[0], (exception,) + callback[1], callback[2]), None))
                         self._call_exception_handlers(exception, False)
 
-                    if __debug__:
-                        debug_call_duration = time() - debug_call_start
-                        if debug_call_duration > 1.0:
-                            dprint(round(debug_call_duration, 2), "s call to ", self._debug_call_name, level="warning")
-
-        except (SystemExit, KeyboardInterrupt, GeneratorExit, AssertionError), exception:
-            dprint("attempting proper shutdown", exception=True, level="error")
-            with lock:
-                self._state = "STATE_EXCEPTION"
-                self._exception = exception
-            self._call_exception_handlers(exception, True)
+                if __debug__:
+                    debug_call_duration = time() - debug_call_start
+                    if debug_call_duration > 1.0:
+                        dprint(round(debug_call_duration, 2), "s call to ", self._debug_call_name, level="warning")
 
         with lock:
             # allowing us to refuse any new tasks.  _requests_mirror and _expired_mirror will still
