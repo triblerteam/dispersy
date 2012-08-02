@@ -95,10 +95,6 @@ class ScenarioScript(ScriptBase):
                      up=self._dispersy.endpoint.total_up, down=self._dispersy.endpoint.total_down,
                      drop=self._dispersy.statistics.drop_count, success=self._dispersy.statistics.success_count)
 
-            # IO usage
-            read_count, write_count, read_bytes, write_bytes = self._process.get_io_counters()
-            self.log("scenario-io", read_count=read_count, write_count=write_count, read_bytes=read_bytes, write_bytes=write_bytes)
-
             # wait
             yield self.enable_statistics
 
@@ -373,11 +369,10 @@ class ScenarioParser2(Parser):
 
         self.db = database
         self.cur = database.cursor()
-        self.cur.execute(u"CREATE TABLE cpu (timestamp INTEGER, peer INTEGER, percentage FLOAT)")
-        self.cur.execute(u"CREATE TABLE memory (timestamp INTEGER, peer INTEGER, rss INTEGER, vms INTEGER)")
-        self.cur.execute(u"CREATE TABLE bandwidth (timestamp INTEGER, peer INTEGER, up INTEGER, down INTEGER, loss INTEGER, success INTEGER, up_rate INTEGER, down_rate INTEGER)")
-        self.cur.execute(u"CREATE TABLE churn (peer INTEGER, online INTEGER, offline INTEGER)")
-        self.cur.execute(u"CREATE TABLE io (timestamp INTEGER, peer INTEGER, read_bytes INTEGER, read_count INTEGER, write_bytes INTEGER, write_count INTEGER)")
+        self.cur.execute(u"CREATE TABLE cpu (timestamp FLOAT, peer INTEGER, percentage FLOAT)")
+        self.cur.execute(u"CREATE TABLE memory (timestamp FLOAT, peer INTEGER, rss INTEGER, vms INTEGER)")
+        self.cur.execute(u"CREATE TABLE bandwidth (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER, loss INTEGER, success INTEGER, up_rate INTEGER, down_rate INTEGER)")
+        self.cur.execute(u"CREATE TABLE churn (peer INTEGER, online FLOAT, offline FLOAT)")
 
         self.mid_cache = {}
         self.hostname = ""
@@ -402,7 +397,6 @@ class ScenarioParser2(Parser):
         self.mapto(self.scenario_cpu, "scenario-cpu")
         self.mapto(self.scenario_memory, "scenario-memory")
         self.mapto(self.scenario_bandwidth, "scenario-bandwidth")
-        self.mapto(self.scenario_io, "scenario-io")
 
     def start_parser(self, filename):
         """Called once before starting to parse FILENAME"""
@@ -412,12 +406,6 @@ class ScenarioParser2(Parser):
         self.bandwidth_timestamp = 0
         self.bandwidth_up = 0
         self.bandwidth_down = 0
-
-        self.io_timestamp = 0.0
-        self.io_read_bytes = 0
-        self.io_read_count = 0
-        self.io_write_bytes = 0
-        self.io_write_count = 0
 
     def get_peer_id_from_mid(self, mid):
         try:
@@ -469,16 +457,6 @@ class ScenarioParser2(Parser):
         self.bandwidth_timestamp = timestamp
         self.bandwidth_up = up
         self.bandwidth_down = down
-
-    def scenario_io(self, timestamp, _, read_bytes, read_count, write_bytes, write_count):
-        delta = timestamp - self.io_timestamp
-        self.cur.execute(u"INSERT INTO io (timestamp, peer, read_bytes, read_count, write_bytes, write_count) VALUES (?, ?, ?, ?, ?, ?)",
-                         (timestamp, self.peer_id, (read_bytes-self.io_read_bytes)/delta, (read_count-self.io_read_count)/delta, (write_bytes-self.io_write_bytes)/delta, (write_count-self.io_write_count)/delta))
-        self.io_timestamp = timestamp
-        self.io_read_bytes = read_bytes
-        self.io_read_count = read_count
-        self.io_write_bytes = write_bytes
-        self.io_write_count = write_count
 
     def parse_directory(self, *args, **kargs):
         try:
