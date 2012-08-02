@@ -308,7 +308,7 @@ if __name__ == "__main__":
 
     import math
     import time
-    for curve in [u"very-low", u"low", u"medium", u"high"]:
+    for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high"]:
         ec = ec_generate_key(curve)
         private_pem = ec_to_private_pem(ec)
         public_pem = ec_to_public_pem(ec)
