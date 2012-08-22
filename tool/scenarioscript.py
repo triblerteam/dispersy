@@ -20,8 +20,10 @@ from .ldecoder import Parser, NextFile
 class ScenarioScript(ScriptBase):
     def __init__(self, *args, **kargs):
         super(ScenarioScript, self).__init__(*args, **kargs)
+        self._my_member = None
         self._master_member = None
         self._community = None
+        self._is_joined = False
         self._process = Process(getpid()) if self.enable_statistics or self.enable_statistics else None
 
         self.log("scenario-init", peernumber=int(self._kargs["peernumber"]), hostname=uname()[1])
@@ -42,16 +44,10 @@ class ScenarioScript(ScriptBase):
 
     def _run_scenario(self):
         for deadline, _, call, args in self.parse_scenario():
-            while True:
-                remaining = deadline - time()
-                if remaining > 0.1:
-                    yield min(10.0, remaining)
-
-                else:
-                    if __debug__: dprint(call.__name__)
-                    if call(*args) == "END":
-                        return
-                    break
+            yield max(0.0, deadline - time())
+            if __debug__: dprint(call.__name__)
+            if call(*args) == "END":
+                return
 
     @property
     def my_member_security(self):
@@ -174,12 +170,9 @@ class ScenarioScript(ScriptBase):
     def scenario_start(self):
         assert self._community is None
         ec = ec_generate_key(self.my_member_security)
-        my_member = Member(ec_to_public_bin(ec), ec_to_private_bin(ec))
+        self._my_member = Member(ec_to_public_bin(ec), ec_to_private_bin(ec))
         self._master_member = Member(self.master_member_public_key)
-        if __debug__: dprint("join community ", self._master_member.mid.encode("HEX"), " as ", my_member.mid.encode("HEX"))
-        self.log("scenario-start", my_member=my_member.mid, master_member=self._master_member.mid, classification=self.community_class.get_classification())
-        self._community = self.community_class.join_community(self._master_member, my_member, *self.community_args, **self.community_kargs)
-        self._community.auto_load = False
+        self.log("scenario-start", my_member=self._my_member.mid, master_member=self._master_member.mid, classification=self.community_class.get_classification())
 
     def scenario_end(self):
         if __debug__: dprint("END")
@@ -189,6 +182,43 @@ class ScenarioScript(ScriptBase):
     def scenario_print(self, *args):
         dprint(*args, glue=" ", force=True)
 
+    def scenario_churn(self, state, duration=None):
+        assert isinstance(state, str), type(state)
+        assert state in ("online", "offline"), state
+        assert duration is None or isinstance(duration, (str, float)), type(duration)
+
+        if state == "online":
+            if self._community is None:
+                if __debug__: dprint("online for the next ", float(duration), " seconds")
+                self.log("scenario-churn", state="online", duration=float(duration))
+
+                if self._is_joined:
+                    self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
+
+                else:
+                    if __debug__: dprint("join community ", self._master_member.mid.encode("HEX"), " as ", self._my_member.mid.encode("HEX"))
+                    self._community = self.community_class.join_community(self._master_member, self._my_member, *self.community_args, **self.community_kargs)
+                    self._community.auto_load = False
+                    self._is_joined = True
+
+            else:
+                if __debug__: dprint("online for the next ", float(duration), " seconds (we are already online)")
+                self.log("scenario-churn", state="stay-online", duration=float(duration))
+
+        elif state == "offline":
+            if self._community is None:
+                if __debug__: dprint("offline (we are already offline)")
+                self.log("scenario-churn", state="stay-offline")
+
+            else:
+                if __debug__: dprint("offline")
+                self.log("scenario-churn", state="offline")
+                self._community.unload_community()
+                self._community = None
+
+        else:
+            raise ValueError("state must be either 'online' or 'offline'")
+
 if poisson:
     class ScenarioPoisson(object):
         def __init__(self, *args, **kargs):
@@ -197,26 +227,13 @@ if poisson:
 
         def __poisson_churn(self):
             while True:
-                delay = poisson.rvs(self.__poisson_online_mu)
-                if self._community is None:
-                    if __debug__: dprint("poisson wants us online for the next ", delay, " seconds")
-                    self.log("scenario-churn", state="online", duration=delay)
-                    self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
-                else:
-                    if __debug__: dprint("poisson wants us online for the next ", delay, " seconds (we are already online)")
-                    self.log("scenario-churn", state="stay-online", duration=delay)
-                yield float(delay)
+                delay = float(poisson.rvs(self.__poisson_online_mu))
+                self.scenario_churn("online", delay)
+                yield delay
 
-                delay = poisson.rvs(self.__poisson_offline_mu)
-                if self._community is None:
-                    if __debug__: dprint("poisson wants us offline for the next ", delay, " seconds (we are already offline)")
-                    self.log("scenario-churn", state="stay-offline", duration=delay)
-                else:
-                    if __debug__: dprint("poisson wants us offline for the next ", delay, " seconds")
-                    self.log("scenario-churn", state="offline", duration=delay)
-                    self._community.unload_community()
-                    self._community = None
-                yield float(delay)
+                delay = float(poisson.rvs(self.__poisson_offline_mu))
+                self.scenario_churn("offline", delay)
+                yield delay
 
         def scenario_poisson_churn(self, online_mu, offline_mu):
             self.__poisson_online_mu = float(online_mu)
@@ -240,28 +257,15 @@ if expon:
             while True:
                 delay = expon.rvs(scale=self.__expon_online_beta)
                 if delay >= self.__expon_online_threshold:
-                    delay = min(self.__expon_max_online, max(self.__expon_min_online, delay))
-                    if self._community is None:
-                        if __debug__: dprint("expon wants us online for the next ", delay, " seconds")
-                        self.log("scenario-churn", state="online", duration=delay)
-                        self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
-                    else:
-                        if __debug__: dprint("expon wants us online for the next ", delay, " seconds (we are already online)")
-                        self.log("scenario-churn", state="stay-online", duration=delay)
-                    yield float(delay)
+                    delay = float(min(self.__expon_max_online, max(self.__expon_min_online, delay)))
+                    self.scenario_churn("online", delay)
+                    yield delay
 
                 delay = expon.rvs(scale=self.__expon_offline_beta)
                 if delay >= self.__expon_offline_threshold:
-                    delay = min(self.__expon_max_offline, max(self.__expon_min_offline, delay))
-                    if self._community is None:
-                        if __debug__: dprint("expon wants us offline for the next ", delay, " seconds (we are already offline)")
-                        self.log("scenario-churn", state="stay-offline", duration=delay)
-                    else:
-                        if __debug__: dprint("expon wants us offline for the next ", delay, " seconds")
-                        self.log("scenario-churn", state="offline", duration=delay)
-                        self._community.unload_community()
-                        self._community = None
-                    yield float(delay)
+                    delay = float(min(self.__expon_max_offline, max(self.__expon_min_offline, delay)))
+                    self.scenario_churn("offline", delay)
+                    yield delay
 
         def scenario_expon_churn(self, online_beta, offline_beta, online_threshold="DEF", min_online="DEF", max_online="DEF", offline_threshold="DEF", min_offline="DEF", max_offline="DEF"):
             self.__expon_online_beta = float(online_beta)
@@ -284,25 +288,12 @@ class ScenarioUniform(object):
 
     def __uniform_churn(self):
         while True:
-            delay = uniform(self.__uniform_online_low, self.__uniform_online_high)
-            if self._community is None:
-                if __debug__: dprint("uniform wants us online for the next ", delay, " seconds")
-                self.log("scenario-churn", state="online", duration=delay)
-                self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
-            else:
-                if __debug__: dprint("uniform wants us online for the next ", delay, " seconds (we are already online)")
-                self.log("scenario-churn", state="stay-online", duration=delay)
-            yield float(delay)
+            delay = float(uniform(self.__uniform_online_low, self.__uniform_online_high))
+            self.scenario_churn("online", delay)
+            yield delay
 
-            delay = uniform(self.__uniform_offline_low, self.__uniform_offline_high)
-            if self._community is None:
-                if __debug__: dprint("uniform wants us offline for the next ", delay, " seconds (we are already offline)")
-                self.log("scenario-churn", state="stay-offline", duration=delay)
-            else:
-                if __debug__: dprint("uniform wants us offline for the next ", delay, " seconds")
-                self.log("scenario-churn", state="offline", duration=delay)
-                self._community.unload_community()
-                self._community = None
+            delay = float(uniform(self.__uniform_offline_low, self.__uniform_offline_high))
+            self.scenario_churn("offline", delay)
             yield float(delay)
 
     def scenario_uniform_churn(self, online_mean, online_mod="DEF", offline_mean="DEF", offline_mod="DEF"):
@@ -316,25 +307,6 @@ class ScenarioUniform(object):
         self.__uniform_offline_high = offline_mean * (1.0 + offline_mod)
         self.log("scenario-uniform-churn", online_low=self.__uniform_online_low, online_high=self.__uniform_online_high, offline_low=self.__uniform_offline_low, offline_high=self.__uniform_offline_high)
         self._dispersy.callback.persistent_register("scenario-uniform-identifier", self.__uniform_churn)
-
-class ScenarioChurn(object):
-    def scenario_online(self, chance):
-        if self._community is None:
-            chance = float(chance) / 100.0
-            if random() < chance:
-                if __debug__: dprint("going back online")
-                self.log("scenario-churn", state="online", chance=chance)
-                self._community = self.community_class.load_community(self._master_member, *self.community_args, **self.community_kargs)
-
-    def scenario_offline(self, chance):
-        if not self._community is None:
-            assert not self._community.auto_load
-            chance = float(chance) / 100.0
-            if random() < chance:
-                if __debug__: dprint("going offline (", chance, ")")
-                self.log("scenario-churn", state="offline", chance=chance)
-                self._community.unload_community()
-                self._community = None
 
 class ScenarioParser1(Parser):
     def __init__(self, database):
@@ -428,7 +400,6 @@ class ScenarioParser2(Parser):
         self.bandwidth_timestamp = timestamp
 
     def scenario_start(self, timestamp, _, my_member, master_member, classification):
-        self.online_timestamp = timestamp
         self.mid = my_member
 
     def scenario_end(self, timestamp, _):
