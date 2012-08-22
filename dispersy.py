@@ -59,7 +59,7 @@ from dprint import dprint
 from endpoint import DummyEndpoint
 from member import DummyMember, Member, MemberFromId, MemberWithoutCheck
 from message import BatchConfiguration, Packet, Message
-from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence
+from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence, DelayMessageByMissingMessage
 from message import DropPacket, DelayPacket
 from payload import AuthorizePayload, RevokePayload, UndoPayload
 from payload import DestroyCommunityPayload
@@ -208,8 +208,8 @@ class MissingSequenceCache(MissingSomethingCache):
 
     @staticmethod
     def message_to_identifier(message):
-        return "-missing-sequence-%s-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.name.encode("UTF-8"), message.distribution.global_time)
-
+        return "-missing-sequence-%s-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.name.encode("UTF-8"), message.distribution.sequence_number)
+    
 class Statistics(object):
     def __init__(self):
         self._start = time()
@@ -1893,14 +1893,14 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         def _filter_fail(message):
             if isinstance(message, DelayMessage):
                 if __debug__:
-                    dprint("delay ", message.delayed, " (", message, ") from ", message.delayed.candidate)
+                    dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
                     self._statistics.delay("om_message_batch:%s" % message.delayed, len(message.delayed.packet))
                 message.create_request()
                 return False
 
             elif isinstance(message, DropMessage):
                 if __debug__:
-                    dprint("drop: ", message.dropped.name, " (", message, ")", level="warning")
+                    dprint(message.dropped.candidate, " drop: ", message.dropped.name, " (", message, ")", level="warning")
                     self._statistics.drop("on_message_batch:%s" % message, len(message.dropped.packet))
                 self._statistics.drop_count += 1
                 return False
@@ -3281,6 +3281,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             cache = MissingMemberCache(timeout)
             self._request_cache.set(identifier, cache)
 
+            if __debug__: dprint(candidate, " sending missing-identity ", dummy_member.mid.encode("HEX"))
             meta = community.get_meta_message(u"dispersy-missing-identity")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(dummy_member.mid,))
             self._forward([request])
@@ -3557,6 +3558,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             missing_low = max(overview.missing_high, missing_low)
             overview.missing_high = missing_high
 
+            if __debug__: dprint(candidate, " sending missing-sequence ", member.mid.encode("HEX"), " ", message.name, " [", missing_low, ":", missing_high, "]")
             meta = community.get_meta_message(u"dispersy-missing-sequence")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, message, missing_low, missing_high))
             self._forward([request])
@@ -3639,7 +3641,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     msg = self.convert_packet_to_message(packet, community)
                     assert msg
                     key = (msg.authentication.member.database_id, msg.database_id, msg.distribution.sequence_number)
-                    assert key in requests[candidate.sock_addr][1], [key, requests[candidate.sock_addr][1]]
+                    assert key in requests[candidate.sock_addr][1], [key, sorted(numbers), lowest, highest]
                     dprint("Syncing ", len(packet), " member:", key[0], " message:", key[1], " sequence:", key[2], " to " , candidate)
 
                 self._statistics.outgoing(u"-sequence-", sum(len(packet) for packet in packets), len(packets))
@@ -3946,8 +3948,31 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
     def check_undo(self, messages):
         assert all(message.name in (u"dispersy-undo-own", u"dispersy-undo-other") for message in messages)
+        community = messages[0].community
 
         for message in messages:
+            assert message.payload.packet is None
+            # message.resume can be many things.  for example: another undo message (when delayed by
+            # missing sequence) or a message (when delayed by missing message).
+            if (message.resume and
+                message.resume.community.database_id == community.database_id and
+                message.resume.authentication.member.database_id == message.payload.member.database_id and
+                message.resume.distribution.global_time == message.payload.global_time):                
+                if __debug__: dprint("using resume cache")
+                message.payload.packet = message.resume
+
+            else:
+                # obtain the packet that we are attempting to undo
+                try:
+                    packet_id, message_name, packet_data = self._database.execute(u"SELECT sync.id, meta_message.name, sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND sync.member = ? AND sync.global_time = ?",
+                                                                                  (community.database_id, message.payload.member.database_id, message.payload.global_time)).next()
+                except StopIteration:
+                    yield DelayMessageByMissingMessage(message, message.payload.member, message.payload.global_time)
+                    continue
+
+                if __debug__: dprint("using packet from database")
+                message.payload.packet = Packet(community.get_meta_message(message_name), str(packet_data), packet_id)
+
             # ensure that the message in the payload allows undo
             if not message.payload.packet.meta.undo_callback:
                 yield DropMessage(message, "message does not allow undo")
@@ -3978,7 +4003,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 # creates.  And that can be limited by revoking her right to create messages.
 
                 # search for the second offending dispersy-undo message
-                community = message.community
                 member = message.authentication.member
                 undo_own_meta = community.get_meta_message(u"dispersy-undo-own")
                 for packet_id, packet in self._database.execute(u"SELECT id, packet FROM sync WHERE community = ? AND member = ? AND meta_message = ?",
@@ -4014,6 +4038,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         Undo a single message.
         """
         assert all(message.name in (u"dispersy-undo-own", u"dispersy-undo-other") for message in messages)
+        if __debug__:
+            for message in messages:
+                dprint(message.candidate, " ", message.authentication.member.mid.encode("HEX"), " #", message.distribution.sequence_number, " @", message.distribution.global_time)
 
         self._database.executemany(u"UPDATE sync SET undone = ? WHERE community = ? AND member = ? AND global_time = ?",
                                    ((message.packet_id, message.community.database_id, message.payload.member.database_id, message.payload.global_time) for message in messages))

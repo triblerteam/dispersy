@@ -385,11 +385,13 @@ class RevokePayload(Payload):
 
 class UndoPayload(Payload):
     class Implementation(Payload.Implementation):
-        def __init__(self, meta, member, global_time, packet):
+        def __init__(self, meta, member, global_time, packet=None):
             if __debug__:
                 from member import Member
+                from message import Packet
             assert isinstance(member, Member)
             assert isinstance(global_time, (int, long))
+            assert packet is None or isinstance(packet, Packet)
             assert global_time > 0
             super(UndoPayload.Implementation, self).__init__(meta)
             self._member = member
@@ -404,9 +406,17 @@ class UndoPayload(Payload):
         def global_time(self):
             return self._global_time
 
-        @property
-        def packet(self):
+        # @property
+        def __get_packet(self):
             return self._packet
+        # @packet.setter
+        def __set_packet(self, packet):
+            if __debug__:
+                from message import Packet
+            assert isinstance(packet, Packet), type(packet)
+            self._packet = packet
+        # .setter was introduced in Python 2.6
+        packet = property(__get_packet, __set_packet)
 
 class MissingSequencePayload(Payload):
     class Implementation(Payload.Implementation):
