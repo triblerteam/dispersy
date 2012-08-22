@@ -592,8 +592,8 @@ class Callback(object):
                     if isinstance(call, GeneratorType):
                         # start next generator iteration
                         result = call.next()
-                        assert isinstance(result, float), type(result)
-                        assert result >= 0.0
+                        assert isinstance(result, float), [type(result), call]
+                        assert result >= 0.0, [result, call]
                         with lock:
                             heappush(requests, (get_timestamp() + result, priority, root_id, call, callback))
 

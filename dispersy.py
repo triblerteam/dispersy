@@ -397,8 +397,8 @@ class Dispersy(Singleton):
         self._wan_address = ("0.0.0.0", 0)
         self._wan_address_votes = {}
         if __debug__:
-            dprint("my LAN address is ", self._lan_address[0], ":", self._lan_address[1], force=True)
-            dprint("my WAN address is ", self._wan_address[0], ":", self._wan_address[1], force=True)
+            dprint("my LAN address is ", self._lan_address[0], ":", self._lan_address[1])
+            dprint("my WAN address is ", self._wan_address[0], ":", self._wan_address[1])
 
         # bootstrap peers
         bootstrap_candidates = get_bootstrap_candidates(self)
@@ -1042,7 +1042,7 @@ class Dispersy(Singleton):
             votes[address] = set()
         votes[address].add(voter.sock_addr)
 
-        if __debug__: dprint(["%5d %15s:%-d [%s]" % (len(voters), vote[0], vote[1], ", ".join("%s:%d" % key for key in voters)) for vote, voters in votes.iteritems()], lines=True, force=1)
+        if __debug__: dprint(["%5d %15s:%-d [%s]" % (len(voters), vote[0], vote[1], ", ".join("%s:%d" % key for key in voters)) for vote, voters in votes.iteritems()], lines=True)
 
         # change when new vote count equal or higher than old address vote count
         if self._wan_address != address and len(votes[address]) >= len(votes.get(self._wan_address, ())):
