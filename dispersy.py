@@ -85,6 +85,9 @@ class SignatureRequestCache(Cache):
 
     def __init__(self, members, response_func, response_args, timeout):
         self.request = None
+        # MEMBERS is a list containing all the members that should add their signature.  currently
+        # we only support double signed messages, hence MEMBERS contains only a single Member
+        # instance.
         self.members = members
         self.response_func = response_func
         self.response_args = response_args
@@ -3522,7 +3525,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             old_body = old_submsg.packet[:len(old_submsg.packet) - sum([member.signature_length for member in old_submsg.authentication.members])]
             new_body = new_submsg.packet[:len(new_submsg.packet) - sum([member.signature_length for member in new_submsg.authentication.members])]
 
-            if cache.response_func(cache, new_submsg, old_body != new_body, *cache.response_args):
+            result = cache.response_func(cache, new_submsg, old_body != new_body, *cache.response_args)
+            assert isinstance(result, bool), "RESPONSE_FUNC must return a boolean value!  True to accept the proposed message, False to reject"
+            if result:
                 # add our own signatures and we can handle the message
                 for signature, member in new_submsg.authentication.signed_members:
                     if not signature and member.private_key:
