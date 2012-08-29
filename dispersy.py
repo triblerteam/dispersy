@@ -1210,7 +1210,7 @@ class Dispersy(Singleton):
             highest = {}
             for message in messages:
                 if not message.authentication.member in highest:
-                    seq, = execute(u"SELECT COUNT(1) FROM sync WHERE member = ? AND sync.meta_message = ?",
+                    seq, = execute(u"SELECT COUNT(*) FROM sync WHERE member = ? AND sync.meta_message = ?",
                                    (message.authentication.member.database_id, message.database_id)).next()
                     highest[message.authentication.member] = seq
 
@@ -2165,7 +2165,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
             if __debug__:
                 if not is_double_member_authentication:
                     for message in messages:
-                        history_size, = self._database.execute(u"SELECT COUNT(1) FROM sync WHERE meta_message = ? AND member = ?", (message.database_id, message.authentication.member.database_id)).next()
+                        history_size, = self._database.execute(u"SELECT COUNT(*) FROM sync WHERE meta_message = ? AND member = ?", (message.database_id, message.authentication.member.database_id)).next()
                         assert history_size <= message.distribution.history_size, [count, message.distribution.history_size, message.authentication.member.database_id]
 
         # update the global time
@@ -4479,7 +4479,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         numbers are used.
         """
         assert isinstance(meta.distribution, FullSyncDistribution), "currently only FullSyncDistribution allows sequence numbers"
-        sequence_number, = self._database.execute(u"SELECT COUNT(1) FROM sync WHERE member = ? AND sync.meta_message = ?",
+        sequence_number, = self._database.execute(u"SELECT COUNT(*) FROM sync WHERE member = ? AND sync.meta_message = ?",
                                                   (community.master_member.database_id, meta.database_id)).next()
         return sequence_number + 1
 
