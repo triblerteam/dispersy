@@ -3213,7 +3213,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
     def is_valid_remote_address(self, address):
         return self._is_valid_lan_address(address) or self._is_valid_wan_address(address)
 
-    def create_identity(self, community, store=True, update=True):
+    def create_identity(self, community, sign_with_master=False, store=True, update=True):
         """
         Create a dispersy-identity message for self.my_member.
 
@@ -3248,7 +3248,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         while global_time < 2:
             global_time = community.claim_global_time()
 
-        message = meta.impl(authentication=(community.my_member,), distribution=(global_time,))
+        message = meta.impl(authentication=(community.master_member if sign_with_master else community.my_member,),
+                            distribution=(global_time,))
         self.store_update_forward([message], store, update, False)
         return message
 
