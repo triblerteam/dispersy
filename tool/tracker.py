@@ -23,15 +23,15 @@ import optparse
 import signal
 import sys
 
-from callback import Callback
-from candidate import WalkCandidate, BootstrapCandidate
-from community import Community
-from conversion import BinaryConversion
-from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
-from dispersy import Dispersy
-from dprint import dprint
-from endpoint import StandaloneEndpoint
-from member import DummyMember, Member
+from ..callback import Callback
+from ..candidate import BootstrapCandidate, LoopbackCandidate
+from ..community import Community
+from ..conversion import BinaryConversion
+from ..crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
+from ..dispersy import Dispersy
+from ..dprint import dprint
+from ..endpoint import StandaloneEndpoint
+from ..member import DummyMember, Member
 
 if sys.platform == 'win32':
     SOCKET_BLOCK_ERRORCODE = 10035    # WSAEWOULDBLOCK
@@ -63,7 +63,11 @@ class TrackerCommunity(Community):
                      u"dispersy-puncture-request",
                      u"dispersy-puncture",
                      u"dispersy-identity",
-                     u"dispersy-missing-identity"]:
+                     u"dispersy-missing-identity",
+
+                     u"dispersy-authorize",
+                     u"dispersy-missing-proof",
+                     u"dispersy-destroy-community"]:
             self._meta_messages[name] = meta_messages[name]
 
     @property
@@ -110,6 +114,38 @@ class TrackerCommunity(Community):
 
         return self._conversions[prefix]
 
+    def dispersy_cleanup_community(self, message):
+        # since the trackers use in-memory databases, we need to store the destroy-community
+        # message, and all associated proof, separately.
+        print "DESTROY", self._cid.encode("HEX")
+
+        write = open("persistent-destroy-community.data", "a+").write
+        write("# received dispersy-destroy-community from %s\n" % (str(message.candidate),))
+
+        identity_id = self._meta_messages[u"dispersy-identity"].database_id
+        execute = self._dispersy.database.execute
+        messages = [message]
+        stored = set()
+        while messages:
+            message = messages.pop()
+
+            if not message.packet in stored:
+                stored.add(message.packet)
+                write(" ".join((message.name, message.packet.encode("HEX"), "\n")))
+
+                if not message.authentication.member.public_key in stored:
+                    try:
+                        packet, = execute(u"SELECT packet FROM sycn WHERE meta_message = ? AND member = ?", (identity_id, message.authentication.member.database_id)).next()
+                    except StopIteration:
+                        pass
+                    else:
+                        write(" ".join(("dispersy-identity", str(packet).encode("HEX"), "\n")))
+
+                _, proofs = self._timeline.check(message)
+                messages.extend(proofs)
+
+        return super(TrackerCommunity, self).dispersy_cleanup_community(message)
+
 class TrackerDispersy(Dispersy):
     @classmethod
     def get_instance(cls, *args, **kargs):
@@ -133,6 +169,19 @@ class TrackerDispersy(Dispersy):
 
         callback.register(self._unload_communities)
         callback.register(self._bandwidth_statistics)
+
+        # load all destroyed communities
+        try:
+            packets = [packet.decode("HEX") for _, packet in (line.split() for line in open("persistent-destroy-community.data", "r"))]
+        except IOError:
+            pass
+        else:
+            candidate = LoopbackCandidate()
+            for packet in reversed(packets):
+                try:
+                    self.on_incoming_packets([(candidate, packet)], cache=False, timestamp=time())
+                except:
+                    dprint("Error while loading from persistent-destroy-community.data", exception=True, level="error")
 
     def get_community(self, cid, load=False, auto_load=True):
         try:
@@ -243,7 +292,7 @@ def main():
     dispersy.define_auto_load(TrackerCommunity)
 
     def signal_handler(sig, frame):
-        print "Received", sig, "signal in", frame
+        print "Received signal '", sig, "' in", frame, "(shutting down)"
         dispersy.callback.stop(wait=False)
     signal.signal(signal.SIGINT, signal_handler)
 
