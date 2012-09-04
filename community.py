@@ -363,7 +363,7 @@ class Community(object):
 
         if mapping:
             for packet, in list(self._dispersy.database.execute(u"SELECT packet FROM sync WHERE meta_message IN (" + ", ".join("?" for _ in mapping) + ") ORDER BY global_time, packet",
-                                                                mapping)):
+                                                                mapping.keys())):
                 message = self._dispersy.convert_packet_to_message(str(packet), self, verify=False)
                 if message:
                     if __debug__: dprint("processing ", message.name)
