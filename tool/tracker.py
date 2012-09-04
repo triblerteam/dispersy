@@ -55,6 +55,13 @@ class TrackerHardKilledCommunity(HardKilledCommunity):
         self._strikes += 1
         return self._strikes
 
+    def dispersy_on_introduction_request(self, messages):
+        hex_cid = messages[0].community.cid.encode("HEX")
+        for message in messages:
+            host, port = message.candidate.sock_addr
+            print "DESTROY_OUT", hex_cid, message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
+        return super(TrackerHardKilledCommunity, self).dispersy_on_introduction_request(messages)
+
 class TrackerCommunity(Community):
     """
     This community will only use dispersy-candidate-request and dispersy-candidate-response messages.
