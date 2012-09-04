@@ -918,32 +918,33 @@ class Dispersy(Singleton):
         assert isinstance(load, bool)
         assert isinstance(auto_load, bool)
 
-        if len(cid) == 20:
-            if not cid in self._communities:
-                try:
-                    # have we joined this community
-                    classification, auto_load_flag, master_public_key = self._database.execute(u"SELECT community.classification, community.auto_load, member.public_key FROM community JOIN member ON member.id = community.master WHERE mid = ?",
-                                                                                               (buffer(cid),)).next()
+        try:
+            return self._communities[cid]
 
-                except StopIteration:
-                    pass
+        except KeyError:
+            try:
+                # have we joined this community
+                classification, auto_load_flag, master_public_key = self._database.execute(u"SELECT community.classification, community.auto_load, member.public_key FROM community JOIN member ON member.id = community.master WHERE mid = ?",
+                                                                                           (buffer(cid),)).next()
 
-                else:
-                    if load or (auto_load and auto_load_flag):
+            except StopIteration:
+                pass
 
-                        if classification in self._auto_load_communities:
-                            master = Member(str(master_public_key)) if master_public_key else DummyMember(cid)
-                            cls, args, kargs = self._auto_load_communities[classification]
-                            cls.load_community(master, *args, **kargs)
-                            assert master.mid in self._communities
+            else:
+                if load or (auto_load and auto_load_flag):
 
-                        else:
-                            if __debug__: dprint("unable to auto load, '", classification, "' is an undefined classification [", cid.encode("HEX"), "]", level="warning")
+                    if classification in self._auto_load_communities:
+                        master = Member(str(master_public_key)) if master_public_key else DummyMember(cid)
+                        cls, args, kargs = self._auto_load_communities[classification]
+                        community = cls.load_community(master, *args, **kargs)
+                        assert master.mid in self._communities
+                        return community
 
                     else:
-                        if __debug__: dprint("not allowed to load '", classification, "'")
+                        if __debug__: dprint("unable to auto load, '", classification, "' is an undefined classification [", cid.encode("HEX"), "]", level="warning")
 
-            return self._communities[cid]
+                else:
+                    if __debug__: dprint("not allowed to load '", classification, "'")
 
         raise KeyError(cid)
 
@@ -4116,6 +4117,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if __debug__:
             # pylint: disable-msg=W0404
             from community import Community
+
+        # epidemic spread of the destroy message
+        self._forward(messages)
 
         for message in messages:
             assert message.name == u"dispersy-destroy-community"
