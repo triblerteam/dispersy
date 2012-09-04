@@ -359,7 +359,7 @@ class Community(object):
             except KeyError:
                 if __debug__: dprint("unable to load permissions from database [could not obtain '", name, "']", level="warning")
             else:
-                mapping[meta.database_id] = meta
+                mapping[meta.database_id] = meta.handle_callback
 
         if mapping:
             for packet, in list(self._dispersy.database.execute(u"SELECT packet FROM sync WHERE meta_message IN (" + ", ".join("?" for _ in mapping) + ") ORDER BY global_time, packet",
