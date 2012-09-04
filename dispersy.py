@@ -4175,12 +4175,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                         # ensure that we keep the identity message
                         if not item.authentication.member.public_key in identities:
+                            identities.add(item.authentication.member.public_key)
                             try:
-                                packet_id, = self._database.execute(u"SELECT id FROM sync WHERE meta_message = ? AND member = ?", (identity_message_id, message.authentication.member.database_id)).next()
+                                packet_id, = self._database.execute(u"SELECT id FROM sync WHERE meta_message = ? AND member = ?",
+                                                                    (identity_message_id, item.authentication.member.database_id)).next()
                             except StopIteration:
                                 pass
                             else:
-                                identities.add(item.authentication.member.public_key)
                                 packet_ids.add(packet_id)
 
                         # get proofs required for ITEM
