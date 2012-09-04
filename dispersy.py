@@ -4127,8 +4127,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
             community = message.community
 
-            # let the community code cleanup first.
-            new_classification = community.dispersy_cleanup_community(message)
+            try:
+                # let the community code cleanup first.
+                new_classification = community.dispersy_cleanup_community(message)
+            except Exception:
+                continue
             assert issubclass(new_classification, Community)
 
             # community cleanup is done.  Now we will cleanup the dispersy database.
@@ -4145,28 +4148,52 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 # this message.  The community should also remove all its data and cleanup as much as
                 # possible.
 
-                # delete everything except (a) all dispersy-destroy-community messages (these both
-                # authorize and revoke the usage of this message) and (b) the associated
-                # dispersy-identity messages to verify the dispersy-destroy-community messages.
-
                 # todo: this should be made more efficient.  not all dispersy-destroy-community messages
                 # need to be kept.  Just the ones in the chain to authorize the message that has just
                 # been received.
 
-                authorize_message_id = community.get_meta_message(u"dispersy-authorize").database_id
-                destroy_message_id = community.get_meta_message(u"dispersy-destroy-community").database_id
                 identity_message_id = community.get_meta_message(u"dispersy-identity").database_id
+                packet_ids = set()
+                identities = set()
 
-                # TODO we should only remove the 'path' of authorize and identity messages
-                # leading to the destroy message
+                # we should not remove our own dispersy-identity message
+                try:
+                    packet_id, = self._database.execute(u"SELECT id FROM sync WHERE meta_message = ? AND member = ?", (identity_message_id, community.my_member.database_id)).next()
+                except StopIteration:
+                    pass
+                else:
+                    identities.add(community.my_member.public_key)
+                    packet_ids.add(packet_id)
 
-                # 1. remove all except the dispersy-authorize, dispersy-destroy-community, and
-                # dispersy-identity messages
-                self._database.execute(u"DELETE FROM sync WHERE community = ? AND NOT (meta_message = ? OR meta_message = ? OR meta_message = ?)", (community.database_id, authorize_message_id, destroy_message_id, identity_message_id))
+                # obtain the permission chain
+                todo = [message]
+                while todo:
+                    item = todo.pop()
 
-                # 2. cleanup the double_signed_sync table.  however, we should keep the ones that
-                # are still referenced
-                self._database.execute(u"DELETE FROM double_signed_sync WHERE NOT EXISTS (SELECT * FROM sync WHERE community = ? AND sync.id = double_signed_sync.sync)", (community.database_id,))
+                    if not item.packet_id in packet_ids:
+                        packet_ids.add(item.packet_id)
+
+                        # ensure that we keep the identity message
+                        if not item.authentication.member.public_key in identities:
+                            try:
+                                packet_id, = self._database.execute(u"SELECT id FROM sync WHERE meta_message = ? AND member = ?", (identity_message_id, message.authentication.member.database_id)).next()
+                            except StopIteration:
+                                pass
+                            else:
+                                identities.add(item.authentication.member.public_key)
+                                packet_ids.add(packet_id)
+
+                        # get proofs required for ITEM
+                        _, proofs = community._timeline.check(item)
+                        todo.extend(proofs)
+
+
+                # 1. cleanup the double_signed_sync table.
+                self._database.execute(u"DELETE FROM double_signed_sync WHERE sync IN (SELECT id FROM sync JOIN double_signed_sync ON sync.id = double_signed_sync.sync WHERE sync.community = ?)", (community.database_id,))
+
+                # 2. cleanup sync table.  everything except what we need to tell others this
+                # community is no longer available
+                self._database.execute(u"DELETE FROM sync WHERE id NOT IN (" + u", ".join(u"?" for _ in packet_ids) + ")", list(packet_ids))
 
                 # 3. cleanup the malicious_proof table.  we need nothing here anymore
                 self._database.execute(u"DELETE FROM malicious_proof WHERE community = ?", (community.database_id,))
