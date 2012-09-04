@@ -3,6 +3,22 @@ from __future__ import with_statement
 
 """
 Run Dispersy in standalone tracker mode.
+
+Outputs statistics every 300 seconds:
+- BANDWIDTH BYTES-UP BYTES-DOWN
+- CANDIDATE COUNT(CANDIDATES)
+- COMMUNITY COUNT(OVERLAYS) COUNT(KILLED-OVERLAYS)
+
+Outputs active peers whenever encountered:
+- REQ_IN2 HEX(COMMUNITY) hex(MEMBER) DISPERSY-VERSION OVERLAY-VERSION ADDRESS PORT
+- RES_IN2 HEX(COMMUNITY) hex(MEMBER) DISPERSY-VERSION OVERLAY-VERSION ADDRESS PORT
+
+Outputs destroyed communities whenever encountered:
+- DESTROY_IN HEX(COMMUNITY) hex(MEMBER) DISPERSY-VERSION OVERLAY-VERSION ADDRESS PORT
+- DESTROY_OUT HEX(COMMUNITY) hex(MEMBER) DISPERSY-VERSION OVERLAY-VERSION ADDRESS PORT
+
+Note that there is no output for REQ_IN2 for destroyed overlays.  Instead a DESTROY_OUT is given
+whenever a introduction request is received for a destroyed overlay.
 """
 
 if __name__ == "__main__":
@@ -139,7 +155,8 @@ class TrackerCommunity(Community):
     def dispersy_cleanup_community(self, message):
         # since the trackers use in-memory databases, we need to store the destroy-community
         # message, and all associated proof, separately.
-        print "DESTROY", self._cid.encode("HEX")
+        host, port = message.candidate.sock_addr
+        print "DESTROY_IN", self._cid.encode("HEX"), message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
 
         write = open(self._dispersy.persistent_storage_filename, "a+").write
         write("# received dispersy-destroy-community from %s\n" % (str(message.candidate),))
