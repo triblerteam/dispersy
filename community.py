@@ -352,20 +352,18 @@ class Community(object):
                     dprint("when sync is enabled the interval should be greater than the walking frequency.  otherwise you are likely to receive duplicate packets [", meta_message.name, "]", level="warning")
 
     def _initialize_timeline(self):
-        # load existing permissions from the database
-        try:
-            authorize = self.get_meta_message(u"dispersy-authorize")
-            revoke = self.get_meta_message(u"dispersy-revoke")
-            dynamic_settings = self.get_meta_message(u"dispersy-dynamic-settings")
+        mapping = {}
+        for name in [u"dispersy-authorize", u"dispersy-revoke", u"dispersy-dynamic-settings"]:
+            try:
+                meta = self.get_meta_message(name)
+            except KeyError:
+                if __debug__: dprint("unable to load permissions from database [could not obtain '", name, "']", level="warning")
+            else:
+                mapping[meta.database_id] = meta
 
-        except KeyError:
-            if __debug__: dprint("unable to load permissions from database [could not obtain 'dispersy-authorize' or 'dispersy-revoke' or 'dispersy-dynamic-settings']", level="warning")
-
-        else:
-            mapping = {authorize.database_id:authorize.handle_callback, revoke.database_id:revoke.handle_callback, dynamic_settings.database_id:dynamic_settings.handle_callback}
-
-            for packet, in list(self._dispersy.database.execute(u"SELECT packet FROM sync WHERE meta_message IN (?, ?, ?) ORDER BY global_time, packet",
-                                                                (authorize.database_id, revoke.database_id, dynamic_settings.database_id))):
+        if mapping:
+            for packet, in list(self._dispersy.database.execute(u"SELECT packet FROM sync WHERE meta_message IN (" + ", ".join("?" for _ in mapping) + ") ORDER BY global_time, packet",
+                                                                mapping)):
                 message = self._dispersy.convert_packet_to_message(str(packet), self, verify=False)
                 if message:
                     if __debug__: dprint("processing ", message.name)
@@ -1328,12 +1326,13 @@ class HardKilledCommunity(Community):
         # remove all messages that we no longer need
         meta_messages = self._meta_messages
         self._meta_messages = {}
-        for name in [u"dispersy-introduction-request",
-                     # u"dispersy-introduction-response",
+        for name in [u"dispersy-authorize",
+                     u"dispersy-destroy-community",
+                     u"dispersy-dynamic-settings",
                      u"dispersy-identity",
+                     u"dispersy-introduction-request",
                      u"dispersy-missing-identity",
-                     u"dispersy-missing-proof",
-                     u"dispersy-destroy-community"]:
+                     u"dispersy-missing-proof"]:
             self._meta_messages[name] = meta_messages[name]
 
         # replace introduction_request behavior
