@@ -284,7 +284,7 @@ class TrackerDispersy(Dispersy):
 
     def _report_statistics(self):
         while True:
-            yield 30.0
+            yield 300.0
             mapping = {TrackerCommunity:0, TrackerHardKilledCommunity:0}
             for community in self._communities.itervalues():
                 mapping[type(community)] += 1
