@@ -1,20 +1,20 @@
-#!/usr/bin/python
-
 # Python 2.5 features
 from __future__ import with_statement
 
 """
 Run Dispersy in standalone tracker mode.
-
-
-Concerning the relative imports, from PEP 328:
-http://www.python.org/dev/peps/pep-0328/
-
-   Relative imports use a module's __name__ attribute to determine that module's position in the
-   package hierarchy. If the module's name does not contain any package information (e.g. it is set
-   to '__main__') then relative imports are resolved as if the module were a top level module,
-   regardless of where the module is actually located on the file system.
 """
+
+if __name__ == "__main__":
+    # Concerning the relative imports, from PEP 328:
+    # http://www.python.org/dev/peps/pep-0328/
+    #
+    #    Relative imports use a module's __name__ attribute to determine that module's position in
+    #    the package hierarchy. If the module's name does not contain any package information
+    #    (e.g. it is set to '__main__') then relative imports are resolved as if the module were a
+    #    top level module, regardless of where the module is actually located on the file system.
+    print "Usage: python -c \"from dispersy.tool.tracker import main; main()\" [--statedir DIR] [--ip ADDR] [--port PORT]"
+    exit(1)
 
 from random import random
 from time import time
@@ -313,7 +313,6 @@ def main():
 
     # parse command-line arguments
     opt, _ = command_line_parser.parse_args()
-    print "Press Ctrl-C to stop Dispersy"
 
     # start Dispersy
     dispersy = TrackerDispersy.get_instance(Callback(), unicode(opt.statedir), opt.port)
@@ -330,6 +329,3 @@ def main():
     # wait forever
     dispersy.callback.loop()
     dispersy.endpoint.stop()
-
-if __name__ == "__main__":
-    main()
