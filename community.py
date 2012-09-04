@@ -1332,7 +1332,8 @@ class HardKilledCommunity(Community):
                      u"dispersy-identity",
                      u"dispersy-introduction-request",
                      u"dispersy-missing-identity",
-                     u"dispersy-missing-proof"]:
+                     u"dispersy-missing-proof",
+                     u"dispersy-revoke"]:
             self._meta_messages[name] = meta_messages[name]
 
         # replace introduction_request behavior
