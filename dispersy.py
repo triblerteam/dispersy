@@ -822,6 +822,7 @@ class Dispersy(Singleton):
         assert not community.dispersy_enable_candidate_walker or community in self._walker_commmunities, [community.dispersy_enable_candidate_walker, community in self._walker_commmunities]
         del self._communities[community.cid]
 
+        # stop walker
         if community.dispersy_enable_candidate_walker:
             self._walker_commmunities.remove(community)
             if self._walker_commmunities:
@@ -830,6 +831,12 @@ class Dispersy(Singleton):
             else:
                 # stop walker scheduler
                 self._callback.unregister(CANDIDATE_WALKER_CALLBACK_ID)
+
+        # remove any items that are left in the cache
+        for meta in community.get_meta_messages():
+            if meta.batch.enabled and meta in self._batch_cache:
+                task_identifier, _, _ = self._batch_cache[meta]
+                self._callback.unregister(task_identifier)
 
     def reclassify_community(self, source, destination):
         """
