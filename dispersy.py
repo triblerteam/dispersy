@@ -1201,8 +1201,8 @@ class Dispersy(Singleton):
         assert all(message.community == messages[0].community for message in messages)
         assert all(message.meta == messages[0].meta for message in messages)
 
-        # a message is considered unique when (creator, global-time), i.r. (authentication.member,
-        # distribution.global_time), is unique.
+        # a message is considered unique when (creator, global-time),
+        # i.e. (authentication.member.database_id, distribution.global_time), is unique.
         unique = set()
         execute = self._database.execute
         enable_sequence_number = messages[0].meta.distribution.enable_sequence_number
@@ -1217,10 +1217,10 @@ class Dispersy(Singleton):
             # obtain the highest sequence_number from the database
             highest = {}
             for message in messages:
-                if not message.authentication.member in highest:
+                if not message.authentication.member.database_id in highest:
                     seq, = execute(u"SELECT COUNT(*) FROM sync WHERE member = ? AND sync.meta_message = ?",
                                    (message.authentication.member.database_id, message.database_id)).next()
-                    highest[message.authentication.member] = seq
+                    highest[message.authentication.member.database_id] = seq
 
             # all messages must follow the sequence_number order
             for message in messages:
@@ -1228,13 +1228,13 @@ class Dispersy(Singleton):
                     yield DropMessage(message, "global time is not within acceptable range (%d, we accept %d)" % (message.distribution.global_time, acceptable_global_time))
                     continue
 
-                key = (message.authentication.member, message.distribution.global_time)
+                key = (message.authentication.member.database_id, message.distribution.global_time)
                 if key in unique:
                     yield DropMessage(message, "duplicate message by member^global_time (1)")
                     continue
 
                 unique.add(key)
-                seq = highest[message.authentication.member]
+                seq = highest[message.authentication.member.database_id]
 
                 if seq >= message.distribution.sequence_number:
                     # we already have this message (drop)
@@ -1255,7 +1255,7 @@ class Dispersy(Singleton):
                     continue
 
                 # we accept this message
-                highest[message.authentication.member] += 1
+                highest[message.authentication.member.database_id] += 1
                 yield message
 
         else:
@@ -1264,7 +1264,7 @@ class Dispersy(Singleton):
                     yield DropMessage(message, "global time is not within acceptable range")
                     continue
 
-                key = (message.authentication.member, message.distribution.global_time)
+                key = (message.authentication.member.database_id, message.distribution.global_time)
                 if key in unique:
                     yield DropMessage(message, "duplicate message by member^global_time (2)")
                     continue
@@ -1325,18 +1325,18 @@ class Dispersy(Singleton):
             assert isinstance(message, Message.Implementation)
             assert isinstance(message.distribution, LastSyncDistribution.Implementation)
 
-            key = (message.authentication.member, message.distribution.global_time)
+            key = (message.authentication.member.database_id, message.distribution.global_time)
             if key in unique:
                 return DropMessage(message, "already processed message by member^global_time")
 
             else:
                 unique.add(key)
 
-                if not message.authentication.member in times:
-                    times[message.authentication.member] = [global_time for global_time, in self._database.execute(u"SELECT global_time FROM sync WHERE community = ? AND member = ? AND meta_message = ?",
-                                                                                                                   (message.community.database_id, message.authentication.member.database_id, message.database_id))]
-                    assert len(times[message.authentication.member]) <= message.distribution.history_size, [message.packet_id, message.distribution.history_size, times[message.authentication.member]]
-                tim = times[message.authentication.member]
+                if not message.authentication.member.database_id in times:
+                    times[message.authentication.member.database_id] = [global_time for global_time, in self._database.execute(u"SELECT global_time FROM sync WHERE community = ? AND member = ? AND meta_message = ?",
+                                                                                                                               (message.community.database_id, message.authentication.member.database_id, message.database_id))]
+                    assert len(times[message.authentication.member.database_id]) <= message.distribution.history_size, [message.packet_id, message.distribution.history_size, times[message.authentication.member.database_id]]
+                tim = times[message.authentication.member.database_id]
 
                 if message.distribution.global_time in tim and self._is_duplicate_sync_message(message):
                     return DropMessage(message, "duplicate message by member^global_time (3)")
@@ -3979,29 +3979,29 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         dependencies = {}
 
         for message in messages:
-            assert message.payload.packet is None
-            # message.resume can be many things.  for example: another undo message (when delayed by
-            # missing sequence) or a message (when delayed by missing message).
-            if (message.resume and
-                message.resume.community.database_id == community.database_id and
-                message.resume.authentication.member.database_id == message.payload.member.database_id and
-                message.resume.distribution.global_time == message.payload.global_time):
-                if __debug__: dprint("using resume cache")
-                message.payload.packet = message.resume
+            if message.payload.packet is None:
+                # message.resume can be many things.  for example: another undo message (when delayed by
+                # missing sequence) or a message (when delayed by missing message).
+                if (message.resume and
+                    message.resume.community.database_id == community.database_id and
+                    message.resume.authentication.member.database_id == message.payload.member.database_id and
+                    message.resume.distribution.global_time == message.payload.global_time):
+                    if __debug__: dprint("using resume cache")
+                    message.payload.packet = message.resume
 
-            else:
-                # obtain the packet that we are attempting to undo
-                try:
-                    packet_id, message_name, packet_data = self._database.execute(u"SELECT sync.id, meta_message.name, sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND sync.member = ? AND sync.global_time = ?",
-                                                                                  (community.database_id, message.payload.member.database_id, message.payload.global_time)).next()
-                except StopIteration:
-                    delay = DelayMessageByMissingMessage(message, message.payload.member, message.payload.global_time)
-                    dependencies[message.authentication.member.public_key] = (message.distribution.sequence_number, delay)
-                    yield delay
-                    continue
+                else:
+                    # obtain the packet that we are attempting to undo
+                    try:
+                        packet_id, message_name, packet_data = self._database.execute(u"SELECT sync.id, meta_message.name, sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND sync.member = ? AND sync.global_time = ?",
+                                                                                      (community.database_id, message.payload.member.database_id, message.payload.global_time)).next()
+                    except StopIteration:
+                        delay = DelayMessageByMissingMessage(message, message.payload.member, message.payload.global_time)
+                        dependencies[message.authentication.member.public_key] = (message.distribution.sequence_number, delay)
+                        yield delay
+                        continue
 
-                if __debug__: dprint("using packet from database")
-                message.payload.packet = Packet(community.get_meta_message(message_name), str(packet_data), packet_id)
+                    if __debug__: dprint("using packet from database")
+                    message.payload.packet = Packet(community.get_meta_message(message_name), str(packet_data), packet_id)
 
             # ensure that the message in the payload allows undo
             if not message.payload.packet.meta.undo_callback:
@@ -4540,6 +4540,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if __debug__:
                     dprint("shutdown")
                     dprint(self.info(), pprint=True)
+                # unload all communities
+                try:
+                    while True:
+                        next(self._communities.itervalues()).unload_community()
+                except StopIteration:
+                    pass
+                # commit database
                 self._database.commit()
                 break
 
@@ -4742,6 +4749,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # 3.4: added info["attachment"] in __debug__ mode
         # 3.5: added info["revision"]
         # 3.6: added info["success_count"] and info["drop_count"]
+        # 3.7: added info["communities"][index]["hex_mid"]
 
         now = time()
         info = {"version":3.6,
@@ -4763,6 +4771,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             community_info = {"classification":community.get_classification(),
                               "database_id":community.database_id,
                               "hex_cid":community.cid.encode("HEX"),
+                              "hex_mid":community.my_member.mid.encode("HEX"),
                               "global_time":community.global_time,
                               "acceptable_global_time":community.acceptable_global_time,
                               "dispersy_acceptable_global_time_range":community.dispersy_acceptable_global_time_range,
