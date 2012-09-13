@@ -4539,7 +4539,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             except Exception:
                 # OperationalError: database is locked
                 dprint(exeption=True, level="error")
-                dprint(self._database.DEBUG_LAST_QUERIES, lines=1, force=1)
+                dprint(self._database.DEBUG_LAST_QUERIES, lines=1, force=1, box=1)
             except GeneratorExit:
                 if __debug__:
                     dprint("shutdown")
