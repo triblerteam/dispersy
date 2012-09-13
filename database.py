@@ -34,6 +34,8 @@ class IgnoreCommits(Exception):
         super(IgnoreCommits, self).__init__("Ignore all commits made within __enter__ and __exit__")
 
 class Database(Singleton):
+    DEBUG_LAST_QUERIES = []
+
     def __init__(self, file_path):
         """
         Initialize a new Database instance.
@@ -41,8 +43,6 @@ class Database(Singleton):
         @param file_path: the path to the database file.
         @type file_path: unicode
         """
-        self.DEBUG_LAST_QUERIES = []
-
         if __debug__:
             assert isinstance(file_path, unicode)
             dprint(file_path)
@@ -231,7 +231,7 @@ class Database(Singleton):
         assert isinstance(statements, unicode), "The SQL statement must be given in unicode"
 
         try:
-            self.DEBUG_LAST_QUERIES.append(statement)
+            self.DEBUG_LAST_QUERIES.append(statements)
             if __debug__: dprint(statements)
             return self._cursor.executescript(statements)
 
@@ -242,7 +242,7 @@ class Database(Singleton):
             raise
 
         finally:
-            self.DEBUG_LAST_QUERIES.remove(statement)
+            self.DEBUG_LAST_QUERIES.remove(statements)
 
     def executemany(self, statement, sequenceofbindings):
         """
@@ -305,7 +305,11 @@ class Database(Singleton):
 
         else:
             if __debug__: dprint("COMMIT")
-            result = self._connection.commit()
+            try:
+                result = self._connection.commit()
+            except:
+                dprint(self.DEBUG_LAST_QUERIES, lines=1, force=1, box=1)
+                raise
             for callback in self._commit_callbacks:
                 try:
                     callback()
