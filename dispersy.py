@@ -4536,6 +4536,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                 # flush changes to disk every 1 minutes
                 self._database.commit()
+            except Exception:
+                # OperationalError: database is locked
+                dprint(exeption=True, level="error")
             except GeneratorExit:
                 if __debug__:
                     dprint("shutdown")
