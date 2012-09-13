@@ -96,6 +96,13 @@ class Callback(object):
         return self._thread_ident
 
     @property
+    def is_current_thread(self):
+        """
+        Returns True when called on this Callback thread.
+        """
+        return self._thread_ident == get_ident()
+
+    @property
     def is_running(self):
         """
         Returns True when the state is STATE_RUNNING.
