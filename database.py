@@ -9,11 +9,11 @@ This module provides basic database functionalty and simple version control.
 import hashlib
 import sqlite3
 
+from dprint import dprint
 from revision import update_revision_information
 from singleton import Singleton
 
 if __debug__:
-    from dprint import dprint
     import thread
 
 # update version information directly from SVN
@@ -41,6 +41,8 @@ class Database(Singleton):
         @param file_path: the path to the database file.
         @type file_path: unicode
         """
+        self.DEBUG_LAST_QUERIES = []
+
         if __debug__:
             assert isinstance(file_path, unicode)
             dprint(file_path)
@@ -211,31 +213,36 @@ class Database(Singleton):
         assert all(lambda x: isinstance(x, str) for x in bindings), "The bindings may not contain a string. \nProvide unicode for TEXT and buffer(...) for BLOB. \nGiven types: %s" % str([type(binding) for binding in bindings])
 
         try:
+            self.DEBUG_LAST_QUERIES.append(statement)
             if __debug__: dprint(statement, " <-- ", bindings)
             return self._cursor.execute(statement, bindings)
 
         except sqlite3.Error:
-            if __debug__:
-                dprint(exception=True, level="warning")
-                dprint("Filename: ", self._file_path, level="warning")
-                dprint(statement, level="warning")
-                dprint(bindings, level="warning")
+            dprint(exception=True, level="warning")
+            dprint("Filename: ", self._file_path, level="warning")
+            dprint(statement, level="warning")
             raise
+
+        finally:
+            self.DEBUG_LAST_QUERIES.remove(statement)
 
     def executescript(self, statements):
         assert self._debug_thread_ident == thread.get_ident(), "Calling Database.execute on the wrong thread"
         assert isinstance(statements, unicode), "The SQL statement must be given in unicode"
 
         try:
+            self.DEBUG_LAST_QUERIES.append(statement)
             if __debug__: dprint(statements)
             return self._cursor.executescript(statements)
 
         except sqlite3.Error:
-            if __debug__:
-                dprint(exception=True, level="warning")
-                dprint("Filename: ", self._file_path, level="warning")
-                dprint(statements, level="warning")
+            dprint(exception=True, level="warning")
+            dprint("Filename: ", self._file_path, level="warning")
+            dprint(statements, level="warning")
             raise
+
+        finally:
+            self.DEBUG_LAST_QUERIES.remove(statement)
 
     def executemany(self, statement, sequenceofbindings):
         """
@@ -275,15 +282,18 @@ class Database(Singleton):
         assert not filter(lambda x: filter(lambda y: isinstance(y, str), x), list(sequenceofbindings)), "The bindings may not contain a string. \nProvide unicode for TEXT and buffer(...) for BLOB."
 
         try:
+            self.DEBUG_LAST_QUERIES.append(statement)
             if __debug__: dprint(statement)
             return self._cursor.executemany(statement, sequenceofbindings)
 
         except sqlite3.Error:
-            if __debug__:
-                dprint(exception=True)
-                dprint("Filename: ", self._file_path)
-                dprint(statement)
+            dprint(exception=True)
+            dprint("Filename: ", self._file_path)
+            dprint(statement)
             raise
+
+        finally:
+            self.DEBUG_LAST_QUERIES.remove(statement)
 
     def commit(self):
         assert self._debug_thread_ident == thread.get_ident(), "Calling Database.commit on the wrong thread"
