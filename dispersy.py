@@ -943,7 +943,7 @@ class Dispersy(Singleton):
          cid.  This is currently not handled.
         """
         assert isinstance(cid, str)
-        assert isinstance(load, bool)
+        assert isinstance(load, bool), type(load)
         assert isinstance(auto_load, bool)
 
         try:
@@ -4559,7 +4559,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 self._database.commit()
             except Exception:
                 # OperationalError: database is locked
-                dprint(exeption=True, level="error")
+                dprint(exception=True, level="error")
             except GeneratorExit:
                 if __debug__:
                     dprint("shutdown")
