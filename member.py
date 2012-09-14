@@ -369,6 +369,18 @@ class MemberFromId(Member):
         # prevent __init__ and hence caching this instance
         raise LookupError(mid)
 
+class MemberFromDatabaseId(Member):
+    def __new__(cls, database_id):
+        assert isinstance(database_id, (int, long)), type(database_id)
+
+        # retrieve Member from cache (based on database_id)
+        for member in cls._cache.itervalues():
+            if member._database_id == database_id:
+                return member
+
+        # prevent __init__ and hence caching this instance
+        raise LookupError(database_id)
+
 class MemberWithoutCheck(Member):
     def __new__(cls, public_key, private_key=""):
         assert isinstance(public_key, str)

@@ -56,7 +56,7 @@ from dispersydatabase import DispersyDatabase
 from distribution import SyncDistribution, FullSyncDistribution, LastSyncDistribution, DirectDistribution
 from dprint import dprint
 from endpoint import DummyEndpoint
-from member import DummyMember, Member, MemberFromId, MemberWithoutCheck
+from member import DummyMember, Member, MemberFromId, MemberFromDatabaseId, MemberWithoutCheck
 from message import BatchConfiguration, Packet, Message
 from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence, DelayMessageByMissingMessage
 from message import DropPacket, DelayPacket
@@ -704,7 +704,7 @@ class Dispersy(Singleton):
         """
         Returns a Member instance associated with public_key.
 
-        since we have the public_key, we can create this user when it didn't already exist.  Hence,
+        Since we have the public_key, we can create this user when it didn't already exist.  Hence,
         this method always succeeds.
 
         @param public_key: The public key of the member we want to obtain.
@@ -744,8 +744,9 @@ class Dispersy(Singleton):
 
         @note: This returns -any- Member, it may not be a member that is part of this community.
         """
-        assert isinstance(mid, str)
-        assert len(mid) == 20
+        assert isinstance(mid, str), type(mid)
+        assert len(mid) == 20, len(mid)
+        assert isinstance(cache, bool), type(cache)
         if cache:
             try:
                 return [MemberFromId(mid)]
@@ -760,6 +761,26 @@ class Dispersy(Singleton):
                 for public_key,
                 in list(self._database.execute(u"SELECT public_key FROM member WHERE mid = ?", (buffer(mid),)))
                 if public_key]
+
+    def get_member_from_database_id(self, database_id, cache=True):
+        """
+        Returns a Member instance associated with DATABASE_ID or None when this row identifier is
+        not available.
+        """
+        assert isinstance(database_id, (int, long)), type(database_id)
+        assert isinstance(cache, bool), type(cache)
+        if cache:
+            try:
+                return MemberFromDatabaseId(database_id)
+            except LookupError:
+                pass
+
+        try:
+            public_key, = next(self._database.execute(u"SELECT public_key FROM member WHERE id = ?", (database_id,)))
+        except StopIteration:
+            return None
+        else:
+            return MemberWithoutCheck(str(public_key))
 
     def attach_community(self, community):
         """
