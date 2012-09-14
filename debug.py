@@ -1,3 +1,9 @@
+try:
+    # python 2.7 only...
+    from collections import OrderedDict
+except ImportError:
+    from .python27_ordereddict import OrderedDict
+
 from time import time, sleep
 import socket
 
@@ -13,7 +19,7 @@ from .revision import update_revision_information
 update_revision_information("$HeadURL$", "$Revision$")
 
 class DebugOnlyMember(Member):
-    _cache = []
+    _cache = OrderedDict()
 
     def __init__(self, public_key, private_key=""):
         super(DebugOnlyMember, self).__init__(public_key)

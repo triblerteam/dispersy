@@ -88,5 +88,4 @@ def main(setup=None):
 
     # start
     callback.loop()
-    if callback.exception:
-        raise callback.exception
+    exit(1 if callback.exception else 0)

@@ -1358,7 +1358,7 @@ class DispersyBatchScript(ScriptBase):
         dprint(self._results, lines=1)
 
         count, = self._dispersy_database.execute(u"SELECT COUNT(1) FROM sync WHERE meta_message = ?", (meta.database_id,)).next()
-        assert_(count == len(messages))
+        assert_(count == len(messages), count, len(messages))
 
         # cleanup
         community.create_dispersy_destroy_community(u"hard-kill")
