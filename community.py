@@ -10,23 +10,23 @@ Community instance.
 
 from hashlib import sha1
 from itertools import islice
+from math import ceil
 from random import random, Random, randint
 from time import time
 
-from bloomfilter import BloomFilter
-from conversion import BinaryConversion, DefaultConversion
-from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
-from decorator import documentation, runtime_duration_warning
-from dispersy import Dispersy
-from distribution import SyncDistribution
-from math import ceil
-from member import DummyMember, Member
-from resolution import PublicResolution, LinearResolution, DynamicResolution
-from revision import update_revision_information
-from timeline import Timeline
+from .bloomfilter import BloomFilter
+from .conversion import BinaryConversion, DefaultConversion
+from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
+from .decorator import documentation, runtime_duration_warning
+from .dispersy import Dispersy
+from .distribution import SyncDistribution
+from .member import DummyMember, Member
+from .resolution import PublicResolution, LinearResolution, DynamicResolution
+from .revision import update_revision_information
+from .timeline import Timeline
 
 if __debug__:
-    from dprint import dprint
+    from .dprint import dprint
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -368,7 +368,9 @@ class Community(object):
                 else:
                     # TODO: when a packet conversion fails we must drop something, and preferably check
                     # all messages in the database again...
-                    if __debug__: dprint("invalid message in database", level="error")
+                    if __debug__:
+                        dprint("invalid message in database [", self.get_classification(), "; ", self.cid.encode("HEX"), "]", level="error")
+                        dprint(str(packet).encode("HEX"), level="error")
 
     # @property
     def __get_dispersy_auto_load(self):
@@ -1145,7 +1147,7 @@ class Community(object):
         @type default: bool
         """
         if __debug__:
-            from conversion import Conversion
+            from .conversion import Conversion
         assert isinstance(conversion, Conversion)
         assert isinstance(default, bool)
         assert not conversion.prefix in self._conversions

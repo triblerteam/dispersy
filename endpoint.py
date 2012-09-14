@@ -1,20 +1,20 @@
 # Python 2.5 features
 from __future__ import with_statement
 
+from itertools import product
+from time import time
+from traceback import print_exc
 import errno
 import select
 import socket
 import sys
 import threading
-from time import time
-from itertools import product
 
-from candidate import Candidate
-from revision import update_revision_information
-from traceback import print_exc
+from .candidate import Candidate
+from .revision import update_revision_information
 
 if __debug__:
-    from dprint import dprint
+    from .dprint import dprint
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -22,7 +22,6 @@ update_revision_information("$HeadURL$", "$Revision$")
 if sys.platform == 'win32':
     SOCKET_BLOCK_ERRORCODE = 10035    # WSAEWOULDBLOCK
 else:
-    import errno
     SOCKET_BLOCK_ERRORCODE = errno.EWOULDBLOCK
 
 TUNNEL_PREFIX = "ffffffff".decode("HEX")

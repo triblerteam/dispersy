@@ -1,9 +1,9 @@
-from member import DummyMember
-from meta import MetaObject
-from revision import update_revision_information
+from .member import DummyMember
+from .meta import MetaObject
+from .revision import update_revision_information
 
 if __debug__:
-    from dprint import dprint
+    from .dprint import dprint
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -46,7 +46,7 @@ class DelayPacketByMissingMember(DelayPacket):
 class DelayPacketByMissingLastMessage(DelayPacket):
     def __init__(self, community, member, message, count):
         if __debug__:
-            from member import Member
+            from .member import Member
         assert isinstance(member, Member)
         assert isinstance(message, Message)
         assert isinstance(count, int)
@@ -61,8 +61,8 @@ class DelayPacketByMissingLastMessage(DelayPacket):
 class DelayPacketByMissingMessage(DelayPacket):
     def __init__(self, community, member, global_time):
         if __debug__:
-            from community import Community
-            from member import Member
+            from .community import Community
+            from .member import Member
         assert isinstance(community, Community)
         assert isinstance(member, Member)
         assert isinstance(global_time, (int, long))
@@ -90,7 +90,7 @@ class DelayMessage(Exception):
     """
     def __init__(self, delayed):
         if __debug__:
-            from message import Message
+            from .message import Message
         assert isinstance(delayed, Message.Implementation), delayed
         super(DelayMessage, self).__init__(self.__class__.__name__)
         self._delayed = delayed
@@ -148,7 +148,7 @@ class DelayMessageBySequence(DelayMessage):
 class DelayMessageByMissingMessage(DelayMessage):
     def __init__(self, delayed, member, global_time):
         if __debug__:
-            from member import Member
+            from .member import Member
         assert isinstance(member, Member)
         assert isinstance(global_time, (int, long))
         super(DelayMessageByMissingMessage, self).__init__(delayed)
@@ -171,7 +171,7 @@ class DropMessage(Exception):
     """
     def __init__(self, dropped, msg):
         if __debug__:
-            from message import Message
+            from .message import Message
         assert isinstance(dropped, Message.Implementation)
         assert isinstance(msg, (str, unicode))
         self._dropped = dropped
@@ -323,15 +323,15 @@ class Message(MetaObject):
     class Implementation(Packet):
         def __init__(self, meta, authentication, resolution, distribution, destination, payload, conversion=None, candidate=None, packet="", packet_id=0, sign=True):
             if __debug__:
-                from payload import Payload
-                from conversion import Conversion
-                from candidate import Candidate
+                from .payload import Payload
+                from .conversion import Conversion
+                from .candidate import Candidate
             assert isinstance(meta, Message), "META has invalid type '%s'" % type(meta)
-            assert isinstance(authentication, meta._authentication.Implementation), "AUTHENTICATION has invalid type '%s'" % type(authentication)
-            assert isinstance(resolution, meta._resolution.Implementation), "RESOLUTION has invalid type '%s'" % type(resolution)
-            assert isinstance(distribution, meta._distribution.Implementation), "DISTRIBUTION has invalid type '%s'" % type(distribution)
-            assert isinstance(destination, meta._destination.Implementation), "DESTINATION has invalid type '%s'" % type(destination)
-            assert isinstance(payload, meta._payload.Implementation), "PAYLOAD has invalid type '%s'" % type(payload)
+            assert isinstance(authentication, meta.authentication.Implementation), "AUTHENTICATION has invalid type '%s'" % type(authentication)
+            assert isinstance(resolution, meta.resolution.Implementation), "RESOLUTION has invalid type '%s'" % type(resolution)
+            assert isinstance(distribution, meta.distribution.Implementation), "DISTRIBUTION has invalid type '%s'" % type(distribution)
+            assert isinstance(destination, meta.destination.Implementation), "DESTINATION has invalid type '%s'" % type(destination)
+            assert isinstance(payload, meta.payload.Implementation), "PAYLOAD has invalid type '%s'" % type(payload)
             assert conversion is None or isinstance(conversion, Conversion), "CONVERSION has invalid type '%s'" % type(conversion)
             assert candidate is None or isinstance(candidate, Candidate)
             assert isinstance(packet, str)
@@ -417,12 +417,12 @@ class Message(MetaObject):
 
     def __init__(self, community, name, authentication, resolution, distribution, destination, payload, check_callback, handle_callback, undo_callback=None, batch=None):
         if __debug__:
-            from community import Community
-            from authentication import Authentication
-            from resolution import Resolution, DynamicResolution
-            from destination import Destination
-            from distribution import Distribution
-            from payload import Payload
+            from .community import Community
+            from .authentication import Authentication
+            from .resolution import Resolution, DynamicResolution
+            from .destination import Destination
+            from .distribution import Distribution
+            from .payload import Payload
         assert isinstance(community, Community), "COMMUNITY has invalid type '%s'" % type(community)
         assert isinstance(name, unicode), "NAME has invalid type '%s'" % type(name)
         assert isinstance(authentication, Authentication), "AUTHENTICATION has invalid type '%s'" % type(authentication)
@@ -554,10 +554,10 @@ class Message(MetaObject):
 
     @staticmethod
     def check_policy_combination(authentication, resolution, distribution, destination):
-        from authentication import Authentication, NoAuthentication, MemberAuthentication, DoubleMemberAuthentication
-        from resolution import Resolution, PublicResolution, LinearResolution, DynamicResolution
-        from distribution import Distribution, RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution
-        from destination import Destination, CandidateDestination, MemberDestination, CommunityDestination
+        from .authentication import Authentication, NoAuthentication, MemberAuthentication, DoubleMemberAuthentication
+        from .resolution import Resolution, PublicResolution, LinearResolution, DynamicResolution
+        from .distribution import Distribution, RelayDistribution, DirectDistribution, FullSyncDistribution, LastSyncDistribution
+        from .destination import Destination, CandidateDestination, MemberDestination, CommunityDestination
 
         assert isinstance(authentication, Authentication)
         assert isinstance(resolution, Resolution)

@@ -212,7 +212,7 @@ class MemberBase(DummyMember):
         Returns True when we have a dispersy-identity message for this member in COMMUNITY.
         """
         if __debug__:
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
 
         if community.cid in self._has_identity:

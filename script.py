@@ -12,24 +12,22 @@ Run some python code, usually to test one or more features.
 from hashlib import sha1
 from random import shuffle
 from time import time
-from tool.lencoder import log, make_valid_key
 import gc
-import hashlib
 import inspect
 import socket
 
-# from lencoder import log
-from candidate import BootstrapCandidate
-from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
-from debug import Node
-from debugcommunity import DebugCommunity, DebugNode
-from dispersy import Dispersy
-from dispersydatabase import DispersyDatabase
-from dprint import dprint
-from member import Member
-from message import BatchConfiguration, Message, DelayMessageByProof, DropMessage
-from resolution import PublicResolution, LinearResolution
-from revision import update_revision_information
+from .candidate import BootstrapCandidate
+from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
+from .debug import Node
+from .debugcommunity import DebugCommunity, DebugNode
+from .dispersy import Dispersy
+from .dispersydatabase import DispersyDatabase
+from .dprint import dprint
+from .member import Member
+from .message import BatchConfiguration, Message, DelayMessageByProof, DropMessage
+from .resolution import PublicResolution, LinearResolution
+from .revision import update_revision_information
+from .tool.lencoder import log, make_valid_key
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")

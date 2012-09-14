@@ -1,10 +1,10 @@
 from random import random
-from revision import update_revision_information
+from .revision import update_revision_information
 
 if __debug__:
     def identifier_to_string(identifier):
         return identifier.encode("HEX") if isinstance(identifier, str) else identifier
-    from dprint import dprint
+    from .dprint import dprint
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")

@@ -20,13 +20,13 @@ from math import ceil, log
 from struct import Struct
 from binascii import hexlify, unhexlify
 
-from decorator import Constructor, constructor
-from revision import update_revision_information
+from .decorator import Constructor, constructor
+from .revision import update_revision_information
 
 if __debug__:
-    from dprint import dprint
     from time import time
-    from decorator import attach_profiler
+    from .dprint import dprint
+    from .decorator import attach_profiler
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -624,7 +624,7 @@ if __debug__:
         from struct import pack
         from random import random
 
-        from database import Database
+        from .database import Database
 
         class TestDatabase(Database):
             def check_database(self, *args):

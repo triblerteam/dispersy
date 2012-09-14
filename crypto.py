@@ -7,7 +7,7 @@ The crypto module provides a layer between Dispersy and low level crypographic f
 """
 
 # update version information directly from SVN
-from revision import update_revision_information
+from .revision import update_revision_information
 update_revision_information("$HeadURL$", "$Revision$")
 
 if False:
@@ -309,7 +309,8 @@ if __name__ == "__main__":
     import math
     import time
     curves = {}
-    for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high", u"NID_secp160k1", u"NID_secp160r1", u"NID_secp160r2", u"NID_secp112r1", u"NID_secp112r2", u"NID_secp128r1", u"NID_secp128r2"]:
+    # for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high", u"NID_secp160k1", u"NID_secp160r1", u"NID_secp160r2", u"NID_secp112r1", u"NID_secp112r2", u"NID_secp128r1", u"NID_secp128r2"]:
+    for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high"]:
         ec = ec_generate_key(curve)
         private_pem = ec_to_private_pem(ec)
         public_pem = ec_to_public_pem(ec)
@@ -334,19 +335,19 @@ if __name__ == "__main__":
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
         ec2 = ec_from_private_bin(private_bin)
         assert ec_verify(ec2, "foo-bar", ec_sign(ec, "foo-bar"))
-        
+
         curves[EC_name(_curves[curve])] = ec
-        
+
     for key, curve in curves.iteritems():
         t1 = time.time()
 
         signatures = [ec_sign(curve, str(i)) for i in xrange(1000)]
-        
+
         t2 = time.time()
-        
+
         for i, signature in enumerate(signatures):
             ec_verify(curve, str(i), signature)
-            
+
         t3 = time.time()
         print key, "signing took", t2-t1, "verify took", t3-t2, "totals", t3-t1
 
@@ -437,7 +438,7 @@ if __name__ == "__main__":
     # # sig = ""
     # # enc = rsa.private_encrypt(digest, M2Crypto.RSA.no_padding)
     # # print "BITS:", bits, "BYTES:", bits / 8, "PUBLIC-PEM:", len(rsa_to_public_pem(rsa)), "MESSAGE:", len(data), "DIGEST:", len(digest), "SIG:", len(sig), "ENC:", len(enc)
-    
+
     # # # smallest md5 (16 bytes)
     # # bits = 16 * 8
     # # rsa = rsa_generate_key(bits, 5)
@@ -457,7 +458,7 @@ if __name__ == "__main__":
     # # digest = md5(record).digest()
     # # enc = record[uid_length:] + rsa.private_encrypt(digest, M2Crypto.RSA.no_padding)
     # # print "BITS:", bits, "BYTES:", bits / 8, "PUBLIC-PEM:", len(rsa_to_public_pem(rsa)), "ENC:", len(enc)
-    
+
 
     # from struct import pack
     # uid_length = 20
@@ -499,7 +500,7 @@ if __name__ == "__main__":
     # enc = rsa.private_encrypt(record, M2Crypto.RSA.no_padding)
     # msg = ("A" * uid_length) + enc
     # print "UID:", uid_length, "BITS:", bits, "PUBLIC-KEY:", len(rsa_to_public_bin(rsa)), "MESSAGE:", len(msg)
-    
+
     # # encrypted record: users are identified by 4 bytes.  this results
     # # in a 160 bits rsa key
     # uid_length = 5

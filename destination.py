@@ -1,5 +1,5 @@
-from meta import MetaObject
-from revision import update_revision_information
+from .meta import MetaObject
+from .revision import update_revision_information
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -13,7 +13,7 @@ class Destination(MetaObject):
         Setup is called after the meta message is initially created.
         """
         if __debug__:
-            from message import Message
+            from .message import Message
         assert isinstance(message, Message)
 
 class CandidateDestination(Destination):
@@ -31,7 +31,7 @@ class CandidateDestination(Destination):
             destination addresses when the associated message is sent.
             """
             if __debug__:
-                from candidate import Candidate
+                from .candidate import Candidate
             assert isinstance(candidates, tuple)
             assert len(candidates) >= 0
             assert all(isinstance(candidate, Candidate) for candidate in candidates)
@@ -62,7 +62,7 @@ class MemberDestination(Destination):
             to find the destination addresses when the associated message is sent.
             """
             if __debug__:
-                from member import Member
+                from .member import Member
             assert len(members) >= 0
             assert all(isinstance(member, Member) for member in members)
             super(MemberDestination.Implementation, self).__init__(meta)

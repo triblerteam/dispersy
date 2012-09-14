@@ -1,13 +1,13 @@
 from time import time, sleep
 import socket
 
-from bloomfilter import BloomFilter
-from candidate import Candidate
-from crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin, ec_from_private_bin
-from dprint import dprint
-from member import Member
-from message import Message
-from revision import update_revision_information
+from .bloomfilter import BloomFilter
+from .candidate import Candidate
+from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin, ec_from_private_bin
+from .dprint import dprint
+from .member import Member
+from .message import Message
+from .revision import update_revision_information
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")

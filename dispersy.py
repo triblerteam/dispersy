@@ -46,32 +46,32 @@ from random import random, shuffle
 from socket import inet_aton, error as socket_error
 from time import time
 
-from authentication import NoAuthentication, MemberAuthentication, DoubleMemberAuthentication
-from bloomfilter import BloomFilter
-from bootstrap import get_bootstrap_candidates
-from callback import Callback
-from candidate import BootstrapCandidate, LoopbackCandidate, WalkCandidate, Candidate
-from destination import CommunityDestination, CandidateDestination, MemberDestination
-from dispersydatabase import DispersyDatabase
-from distribution import SyncDistribution, FullSyncDistribution, LastSyncDistribution, DirectDistribution
-from dprint import dprint
-from endpoint import DummyEndpoint
-from member import DummyMember, Member, MemberFromId, MemberFromDatabaseId, MemberWithoutCheck
-from message import BatchConfiguration, Packet, Message
-from message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence, DelayMessageByMissingMessage
-from message import DropPacket, DelayPacket
-from payload import AuthorizePayload, RevokePayload, UndoPayload
-from payload import DestroyCommunityPayload
-from payload import DynamicSettingsPayload
-from payload import IdentityPayload, MissingIdentityPayload
-from payload import IntroductionRequestPayload, IntroductionResponsePayload, PunctureRequestPayload, PuncturePayload
-from payload import MissingMessagePayload, MissingLastMessagePayload
-from payload import MissingSequencePayload, MissingProofPayload
-from payload import SignatureRequestPayload, SignatureResponsePayload
-from requestcache import Cache, RequestCache
-from resolution import PublicResolution, LinearResolution
-from revision import update_revision_information, get_revision_information
-from singleton import Singleton
+from .authentication import NoAuthentication, MemberAuthentication, DoubleMemberAuthentication
+from .bloomfilter import BloomFilter
+from .bootstrap import get_bootstrap_candidates
+from .callback import Callback
+from .candidate import BootstrapCandidate, LoopbackCandidate, WalkCandidate, Candidate
+from .destination import CommunityDestination, CandidateDestination, MemberDestination
+from .dispersydatabase import DispersyDatabase
+from .distribution import SyncDistribution, FullSyncDistribution, LastSyncDistribution, DirectDistribution
+from .dprint import dprint
+from .endpoint import DummyEndpoint
+from .member import DummyMember, Member, MemberFromId, MemberFromDatabaseId, MemberWithoutCheck
+from .message import BatchConfiguration, Packet, Message
+from .message import DropMessage, DelayMessage, DelayMessageByProof, DelayMessageBySequence, DelayMessageByMissingMessage
+from .message import DropPacket, DelayPacket
+from .payload import AuthorizePayload, RevokePayload, UndoPayload
+from .payload import DestroyCommunityPayload
+from .payload import DynamicSettingsPayload
+from .payload import IdentityPayload, MissingIdentityPayload
+from .payload import IntroductionRequestPayload, IntroductionResponsePayload, PunctureRequestPayload, PuncturePayload
+from .payload import MissingMessagePayload, MissingLastMessagePayload
+from .payload import MissingSequencePayload, MissingProofPayload
+from .payload import SignatureRequestPayload, SignatureResponsePayload
+from .requestcache import Cache, RequestCache
+from .resolution import PublicResolution, LinearResolution
+from .revision import update_revision_information, get_revision_information
+from .singleton import Singleton
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -613,8 +613,7 @@ class Dispersy(Singleton):
         @rtype: [Message]
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         messages = [Message(community, u"dispersy-identity", MemberAuthentication(encoding="bin"), PublicResolution(), LastSyncDistribution(synchronization_direction=u"ASC", priority=16, history_size=1), CommunityDestination(node_count=0), IdentityPayload(), self._generic_timeline_check, self.on_identity),
                     Message(community, u"dispersy-signature-request", NoAuthentication(), PublicResolution(), DirectDistribution(), MemberDestination(), SignatureRequestPayload(), self.check_signature_request, self.on_signature_request),
@@ -667,8 +666,7 @@ class Dispersy(Singleton):
         using COMMUNITY.load_community(master, *ARGS, **KARGS).
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert issubclass(community, Community)
         assert isinstance(args, tuple)
         assert kargs is None or isinstance(kargs, dict)
@@ -682,8 +680,7 @@ class Dispersy(Singleton):
         COMMUNITY is the community class that is defined.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert issubclass(community, Community)
         assert community.get_classification() in self._auto_load_communities
         del self._auto_load_communities[community.get_classification()]
@@ -795,8 +792,7 @@ class Dispersy(Singleton):
         @type community: Community
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         if __debug__: dprint(community.cid.encode("HEX"), " ", community.get_classification())
         assert not community.cid in self._communities
@@ -834,8 +830,7 @@ class Dispersy(Singleton):
         @type community: Community
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         if __debug__: dprint(community.cid.encode("HEX"), " ", community.get_classification())
         assert community.cid in self._communities
@@ -881,8 +876,7 @@ class Dispersy(Singleton):
         @type destination: Community class
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(source, (Community, Member))
         assert issubclass(destination, Community)
 
@@ -990,8 +984,7 @@ class Dispersy(Singleton):
         Returns None if this message is not in the local database.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert isinstance(member, Member)
         assert isinstance(global_time, (int, long))
@@ -1005,8 +998,7 @@ class Dispersy(Singleton):
 
     def get_last_message(self, community, member, meta):
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert isinstance(member, Member)
         assert isinstance(meta, Message)
@@ -1664,8 +1656,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         Returns the Message representing the packet or None when no conversion is possible.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(packet, str)
         assert isinstance(community, (type(None), Community))
         assert isinstance(load, bool)
@@ -1699,8 +1690,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         possible.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(packet, str), type(packet)
         assert community is None or isinstance(community, Community), type(community)
         assert isinstance(load, bool), type(load)
@@ -2052,8 +2042,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
 
     def _convert_batch_into_messages(self, batch):
         if __debug__:
-            # pylint: disable-msg=W0404
-            from conversion import Conversion
+            from .conversion import Conversion
         assert isinstance(batch, (list, set))
         assert len(batch) > 0
         assert all(isinstance(x, tuple) for x in batch)
@@ -2213,7 +2202,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         Yields all active candidates that are part of COMMUNITY.
         """
         if __debug__:
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         now = time()
         return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now))
@@ -2223,7 +2212,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         Yields unique active random candidates that are part of COMMUNITY.
         """
         if __debug__:
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert all(not sock_address in self._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
 
@@ -2253,7 +2242,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         COMMUNITY.
         """
         if __debug__:
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
 
         # TODO we can optimize by not doing all the sorting until we select where we want to pick a
@@ -3050,8 +3039,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type candidate: Candidate
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(member, Member)
             assert member.must_blacklist, "must be blacklisted"
@@ -3106,8 +3094,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
     def create_missing_last_message(self, community, candidate, member, message, count_, response_func=None, response_args=(), timeout=10.0):
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(candidate, Candidate)
             assert isinstance(member, Member)
@@ -3261,8 +3248,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type store: bool
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert isinstance(store, bool)
         meta = community.get_meta_message(u"dispersy-identity")
@@ -3304,8 +3290,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         which contains this public key.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(candidate, Candidate)
             assert isinstance(dummy_member, DummyMember)
@@ -3401,8 +3386,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type store: bool
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert isinstance(message, Message.Implementation)
         assert isinstance(message.authentication, DoubleMemberAuthentication.Implementation)
@@ -3779,8 +3763,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type store: bool
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(permission_triplets, (tuple, list))
             for triplet in permission_triplets:
@@ -3880,8 +3863,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type store: bool
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(permission_triplets, (tuple, list))
             for triplet in permission_triplets:
@@ -3934,8 +3916,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         be found.
         """
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
             assert isinstance(community, Community)
             assert isinstance(message, Message.Implementation)
             assert isinstance(sign_with_master, bool)
@@ -4121,8 +4102,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
     def create_destroy_community(self, community, degree, sign_with_master=False, store=True, update=True, forward=True):
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
         assert isinstance(community, Community)
         assert isinstance(degree, unicode)
         assert degree in (u"soft-kill", u"hard-kill")
@@ -4144,8 +4124,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
     def on_destroy_community(self, messages):
         if __debug__:
-            # pylint: disable-msg=W0404
-            from community import Community
+            from .community import Community
 
         # epidemic spread of the destroy message
         self._forward(messages)

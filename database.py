@@ -9,9 +9,9 @@ This module provides basic database functionalty and simple version control.
 import hashlib
 import sqlite3
 
-from dprint import dprint
-from revision import update_revision_information
-from singleton import Singleton
+from .dprint import dprint
+from .revision import update_revision_information
+from .singleton import Singleton
 
 if __debug__:
     import thread

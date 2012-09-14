@@ -11,12 +11,11 @@ from threading import Thread, Lock, Event
 from time import sleep, time
 from types import GeneratorType, TupleType
 
-from decorator import attach_profiler
-from dprint import dprint
-from revision import update_revision_information
+from .decorator import attach_profiler
+from .dprint import dprint
+from .revision import update_revision_information
 
 if __debug__:
-    from threading import current_thread
     from atexit import register as atexit_register
     from inspect import getsourcefile, getsourcelines
     from types import LambdaType
