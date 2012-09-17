@@ -504,7 +504,7 @@ class Callback(object):
             time_since_expired = 0
 
         if prctl:
-            prctl.set_name(currentThread().getName())
+            prctl.set_name("Tribler" + currentThread().getName())
 
         # put some often used methods and object in the local namespace
         actual_time = 0
