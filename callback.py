@@ -7,9 +7,14 @@ A callback thread running Dispersy.
 
 from heapq import heappush, heappop
 from thread import get_ident
-from threading import Thread, Lock, Event
+from threading import Thread, Lock, Event, currentThread
 from time import sleep, time
 from types import GeneratorType, TupleType
+
+try:
+    import prctl
+except ImportError:
+    prctl = None
 
 from .decorator import attach_profiler
 from .dprint import dprint
@@ -497,6 +502,9 @@ class Callback(object):
         if __debug__:
             dprint()
             time_since_expired = 0
+
+        if prctl:
+            prctl.set_name(currentThread().getName())
 
         # put some often used methods and object in the local namespace
         actual_time = 0
