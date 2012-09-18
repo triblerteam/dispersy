@@ -442,10 +442,11 @@ class Dispersy(Singleton):
         """
         Returns the address of the first AF_INET interface it can find.
         """
+        blacklist = ["127.0.0.1", "0.0.0.0", "255.255.255.255"]
         for interface in netifaces.interfaces():
             addresses = netifaces.ifaddresses(interface)
             for option in addresses.get(netifaces.AF_INET, []):
-                if "broadcast" in option and "addr" in option and not option["addr"] == "127.0.0.1":
+                if "broadcast" in option and "addr" in option and not option["addr"] in blacklist:
                     if __debug__: dprint("interface ", interface, " address ", option["addr"])
                     return option["addr"]
         return None
