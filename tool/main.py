@@ -44,6 +44,7 @@ def main(setup=None):
     # define options
     command_line_parser = optparse.OptionParser()
     command_line_parser.add_option("--profiler", action="store_true", help="use cProfile on the Dispersy thread", default=False)
+    command_line_parser.add_option("--memory-dump", action="store_true", help="use maliae to dump the memory periodically", default=False)
     command_line_parser.add_option("--statedir", action="store", type="string", help="Use an alternate statedir", default=u".")
     command_line_parser.add_option("--ip", action="store", type="string", default="0.0.0.0", help="Dispersy uses this ip")
     command_line_parser.add_option("--port", action="store", type="int", help="Dispersy uses this UDL port", default=12345)
