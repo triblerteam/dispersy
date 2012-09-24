@@ -298,7 +298,7 @@ else:
 #     assert isinstance(pem, str)
 #     return M2Crypto.RSA.load_pub_key_bio(M2Crypto.BIO.MemoryBuffer(pem))
 
-if __name__ == "__main__":
+def main():
     def EC_name(curve):
         assert isinstance(curve, int)
         for name in dir(EC):
@@ -309,8 +309,8 @@ if __name__ == "__main__":
     import math
     import time
     curves = {}
-    # for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high", u"NID_secp160k1", u"NID_secp160r1", u"NID_secp160r2", u"NID_secp112r1", u"NID_secp112r2", u"NID_secp128r1", u"NID_secp128r2"]:
-    for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high"]:
+    for curve in sorted([unicode(attr) for attr in dir(EC) if attr.startswith("NID_")]):
+    # for curve in [u"very-low", u"NID_secp224r1", u"low", u"medium", u"high"]:
         ec = ec_generate_key(curve)
         private_pem = ec_to_private_pem(ec)
         public_pem = ec_to_public_pem(ec)
@@ -338,10 +338,10 @@ if __name__ == "__main__":
 
         curves[EC_name(_curves[curve])] = ec
 
-    for key, curve in curves.iteritems():
+    for key, curve in sorted(curves.iteritems()):
         t1 = time.time()
 
-        signatures = [ec_sign(curve, str(i)) for i in xrange(1000)]
+        signatures = [ec_sign(curve, str(i)) for i in xrange(100)]
 
         t2 = time.time()
 
@@ -349,7 +349,10 @@ if __name__ == "__main__":
             ec_verify(curve, str(i), signature)
 
         t3 = time.time()
-        print key, "signing took", t2-t1, "verify took", t3-t2, "totals", t3-t1
+        print key, "signing took", round(t2-t1, 5), "verify took", round(t3-t2, 5), "totals", round(t3-t1, 5)
+
+if __name__ == "__main__":
+    main()
 
     ##
 
