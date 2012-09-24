@@ -112,6 +112,11 @@ class TrackerCommunity(Community):
     def dispersy_auto_download_master_member(self):
         return False
 
+    @property
+    def dispersy_sync_bloom_filter_strategy(self):
+        # disable sync bloom filter
+        return lambda: None
+
     def update_strikes(self, now):
         # does the community have any active candidates
         for candidate in self._dispersy.candidates:
@@ -127,10 +132,6 @@ class TrackerCommunity(Community):
 
     def initiate_conversions(self):
         return [BinaryTrackerConversion(self, "\x00")]
-
-    def dispersy_claim_sync_bloom_filter(self, identifier):
-        # disable the sync mechanism
-        return None
 
     def get_conversion(self, prefix=None):
         if not prefix in self._conversions:

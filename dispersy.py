@@ -2204,6 +2204,8 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         # update the global time
         meta.community.update_global_time(highest_global_time)
 
+        meta.community.dispersy_store(messages)
+
         # if update_sync_range:
         #     # notify that global times have changed
         #     meta.community.update_sync_range(meta, update_sync_range)
@@ -2430,7 +2432,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                 self._callback.unregister(task_identifier)
                 self._on_batch_cache_timeout(meta, timestamp, batch)
 
-            sync = community.dispersy_claim_sync_bloom_filter(identifier)
+            sync = community.dispersy_claim_sync_bloom_filter(cache)
             if __debug__:
                 assert sync is None or isinstance(sync, tuple), sync
                 if not sync is None:

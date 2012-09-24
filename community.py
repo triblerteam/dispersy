@@ -20,16 +20,25 @@ from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from .decorator import documentation, runtime_duration_warning
 from .dispersy import Dispersy
 from .distribution import SyncDistribution
+from .dprint import dprint
 from .member import DummyMember, Member
 from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
 from .timeline import Timeline
 
-if __debug__:
-    from .dprint import dprint
-
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
+
+class SyncCache(object):
+    def __init__(self, time_low, time_high, modulo, offset, bloom_filter):
+        self.time_low = time_low
+        self.time_high = time_high
+        self.modulo = modulo
+        self.offset = offset
+        self.bloom_filter = bloom_filter
+        self.times_used = 0
+        self.responses_received = 0
+        self.candidate = None
 
 class Community(object):
     @classmethod
@@ -284,7 +293,10 @@ class Community(object):
         if __debug__: dprint("global time:   ", self._global_time)
 
         # sync range bloom filters
+        self._sync_cache = None
         if __debug__:
+            self._DEBUG_NEW = 0
+            self._DEBUG_REUSE = 0
             b = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate)
             dprint("sync bloom:    size: ", int(ceil(b.size // 8)), ";  capacity: ", b.get_capacity(self.dispersy_sync_bloom_filter_error_rate), ";  error-rate: ", self.dispersy_sync_bloom_filter_error_rate)
 
@@ -490,14 +502,48 @@ class Community(object):
         """
         return (1500 - 60 - 8 - 51 - self._my_member.signature_length - 21 - 30) * 8
 
-    def dispersy_claim_sync_bloom_filter(self, identifier):
+    @property
+    def dispersy_sync_bloom_filter_strategy(self):
+        return self._dispersy_claim_sync_bloom_filter_largest
+
+    def dispersy_store(self, messages):
         """
-        Returns a (time_low, time_high, modulo, offset, bloom_filter) tuple or None.
+        Called after new MESSAGES have been stored in the database.
         """
-        # return self.dispersy_claim_sync_bloom_filter_right()
-        # return self.dispersy_claim_sync_bloom_filter_50_50()
-        return self.dispersy_claim_sync_bloom_filter_largest()
-        # return self.dispersy_claim_sync_bloom_filter_simple()
+        if self._sync_cache:
+            cache = self._sync_cache
+            for message in messages:
+                if (cache.time_low <= message.distribution.global_time <= cache.time_high and
+                    cache.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
+                    cache.bloom_filter.add(message.packet)
+                    cache.responses_received += 1
+
+    def dispersy_claim_sync_bloom_filter(self, request_cache):
+        """
+        Returns a (time_low, time_high, modulo, offset, bloom_filter) or None.
+        """
+        if (self._sync_cache and
+            self._sync_cache.responses_received > 0 and
+            self._sync_cache.times_used < 100):
+            cache = self._sync_cache
+            cache.times_used += 1
+            cache.responses_received = 0
+            cache.candidate = request_cache.helper_candidate
+
+            if __debug__:
+                self._DEBUG_REUSE += 1
+                dprint(self._cid.encode("HEX"), " reuse #", cache.times_used, " (packets received: ", cache.responses_received, "; ", hex(cache.bloom_filter._filter), ")")
+            return cache.time_low, cache.time_high, cache.modulo, cache.offset, cache.bloom_filter
+
+        time_low, time_high, modulo, offset, bloom = self.dispersy_sync_bloom_filter_strategy()
+
+        self._sync_cache = SyncCache(time_low, time_high, modulo, offset, bloom)
+        self._sync_cache.candidate = request_cache.helper_candidate
+        if __debug__:
+            self._DEBUG_NEW += 1
+            dprint(self._cid.encode("HEX"), " new sync bloom (", self._DEBUG_REUSE, "/", self._DEBUG_NEW, "~", round(1.0 * self._DEBUG_REUSE / self._DEBUG_NEW, 2), ")")
+
+        return time_low, time_high, modulo, offset, bloom
 
     @runtime_duration_warning(0.5)
     def dispersy_claim_sync_bloom_filter_simple(self):
@@ -659,7 +705,7 @@ class Community(object):
 
     #instead of pivot + capacity, compare pivot - capacity and pivot + capacity to see which globaltime range is largest
     @runtime_duration_warning(0.5)
-    def dispersy_claim_sync_bloom_filter_largest(self):
+    def _dispersy_claim_sync_bloom_filter_largest(self):
         if __debug__:
             t1 = time()
 
@@ -736,7 +782,7 @@ class Community(object):
 
     #instead of pivot + capacity, compare pivot - capacity and pivot + capacity to see which globaltime range is largest
     @runtime_duration_warning(0.5)
-    def dispersy_claim_sync_bloom_filter_modulo(self):
+    def _dispersy_claim_sync_bloom_filter_modulo(self):
         syncable_messages = u", ".join(unicode(meta.database_id) for meta in self._meta_messages.itervalues() if isinstance(meta.distribution, SyncDistribution) and meta.distribution.priority > 32)
         if syncable_messages:
             bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
