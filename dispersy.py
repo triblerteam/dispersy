@@ -431,6 +431,20 @@ class Dispersy(Singleton):
         # statistics...
         self._statistics = Statistics()
 
+        # memory profiler
+        if "--memory-dump" in sys.argv:
+            def memory_dump():
+                from meliae import scanner
+                start = time()
+                try:
+                    while True:
+                        yield float(60 * 60)
+                        scanner.dump_all_objects("memory-%d.out" % (time() - start))
+                except GeneratorExit:
+                    scanner.dump_all_objects("memory-%d-shutdown.out" % (time() - start))
+
+            self._callback.register(memory_dump)
+
         if __debug__:
             self._callback.register(self._stats_candidates)
             self._callback.register(self._stats_detailed_candidates)
