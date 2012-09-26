@@ -95,6 +95,9 @@ else:
     from math import ceil
     from M2Crypto.m2 import bn_to_bin, bin_to_bn, bn_to_mpi, mpi_to_bn
     from M2Crypto import EC, BIO
+    from struct import Struct
+
+    _struct_L = Struct(">L")
 
     # Allow all available curves.
     _curves = dict((unicode(curve), getattr(EC, curve)) for curve in dir(EC) if curve.startswith("NID_"))
@@ -212,12 +215,14 @@ else:
         """
         Returns the signature of DIGEST made using EC.
         """
-        r, s = ec.sign_dsa(digest)
-        # convert r and s from their MPI representation into BigNum into binary strings
-        r = bn_to_bin(mpi_to_bn(r))
-        s = bn_to_bin(mpi_to_bn(s))
-
         length = int(ceil(len(ec) / 8.0))
+
+        mpi_r, mpi_s = ec.sign_dsa(digest)
+        length_r, = _struct_L.unpack_from(mpi_r)
+        r = mpi_r[-min(length, length_r):]
+        length_s, = _struct_L.unpack_from(mpi_s)
+        s = mpi_s[-min(length, length_s):]
+
         return "".join(("\x00" * (length - len(r)), r, "\x00" * (length - len(s)), s))
 
     def ec_verify(ec, digest, signature):
@@ -227,7 +232,10 @@ else:
         assert len(signature) == ec_signature_length(ec), [len(signature), ec_signature_length(ec)]
         length = len(signature) / 2
         try:
-            return bool(ec.verify_dsa(digest, bn_to_mpi(bin_to_bn(signature[:length])), bn_to_mpi(bin_to_bn(signature[length:]))))
+            mpi_r = "".join((_struct_L.pack(length + 1), "\x00", signature[:length]))
+            mpi_s = "".join((_struct_L.pack(length + 1), "\x00", signature[length:]))
+            return bool(ec.verify_dsa(digest, mpi_r, mpi_s))
+
         except:
             return False
 
@@ -350,6 +358,13 @@ def main():
 
         t3 = time.time()
         print key, "signing took", round(t2-t1, 5), "verify took", round(t3-t2, 5), "totals", round(t3-t1, 5)
+
+def memory():
+    while True:
+        for curve in sorted([unicode(attr) for attr in dir(EC) if attr.startswith("NID_")]):
+            ec = ec_generate_key(curve)
+            if not ec_verify(ec, "foo-bar", ec_sign(ec, "foo-bar")):
+                exit(1)
 
 if __name__ == "__main__":
     main()
