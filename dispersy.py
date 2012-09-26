@@ -348,7 +348,7 @@ class Dispersy(Singleton):
     The Dispersy class provides the interface to all Dispersy related commands, managing the in- and
     outgoing data for, possibly, multiple communities.
     """
-    def __init__(self, callback, working_directory):
+    def __init__(self, callback, working_directory, database_filename=u"dispersy.db"):
         """
         Initialize the Dispersy singleton instance.
 
@@ -361,9 +361,13 @@ class Dispersy(Singleton):
 
         @param working_directory: The directory where all files should be stored.
         @type working_directory: unicode
+
+        @param database_filename: The database filename or u":memory:"
+        @type database_filename: unicode
         """
         assert isinstance(callback, Callback)
         assert isinstance(working_directory, unicode)
+        assert isinstance(database_filename, unicode)
 
         super(Dispersy, self).__init__()
 
@@ -377,10 +381,12 @@ class Dispersy(Singleton):
         self._working_directory = os.path.abspath(working_directory)
 
         # our data storage
-        sqlite_directory = os.path.join(self._working_directory, u"sqlite")
-        if not os.path.isdir(sqlite_directory):
-            os.makedirs(sqlite_directory)
-        self._database = DispersyDatabase.get_instance(sqlite_directory)
+        if not database_filename == u":memory:":
+            database_directory = os.path.join(self._working_directory, u"sqlite")
+            if not os.path.isdir(database_directory):
+                os.makedirs(database_directory)
+            database_filename = os.path.join(database_directory, database_filename)
+        self._database = DispersyDatabase.get_instance(database_filename)
 
         # peer selection candidates.  address:Candidate pairs (where
         # address is obtained from socket.recv_from)

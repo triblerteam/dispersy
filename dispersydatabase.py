@@ -87,16 +87,6 @@ class DispersyDatabase(Database):
     if __debug__:
         __doc__ = schema
 
-    def __init__(self, working_directory):
-        """
-        Initialize a new DispersyDatabase instance.
-
-        @type working_directory: unicode
-        @param working_directory: the directory name where the database file should be stored.
-        """
-        assert isinstance(working_directory, unicode)
-        Database.__init__(self, path.join(working_directory, u"dispersy.db"))
-
     def check_database(self, database_version):
         assert isinstance(database_version, unicode)
         assert database_version.isdigit()

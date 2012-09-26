@@ -56,7 +56,9 @@ else:
     SOCKET_BLOCK_ERRORCODE = errno.EWOULDBLOCK
 
 class BinaryTrackerConversion(BinaryConversion):
-    pass
+    def decode_message(self, candidate, data, _=None):
+        # disable verify
+        return self._decode_message(candidate, data, False, False)
 
 class TrackerHardKilledCommunity(HardKilledCommunity):
     def __init__(self, *args, **kargs):
@@ -192,10 +194,8 @@ class TrackerDispersy(Dispersy):
         kargs["singleton_placeholder"] = Dispersy
         return super(TrackerDispersy, cls).get_instance(*args, **kargs)
 
-    def __init__(self, callback, working_directory, port):
-        assert isinstance(port, int)
-        assert 0 <= port
-        super(TrackerDispersy, self).__init__(callback, working_directory)
+    def __init__(self, callback, working_directory):
+        super(TrackerDispersy, self).__init__(callback, working_directory, u":memory:")
 
         # non-autoload nodes
         self._non_autoload = set()
