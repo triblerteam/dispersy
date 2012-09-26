@@ -342,7 +342,7 @@ def main():
     opt, _ = command_line_parser.parse_args()
 
     # start Dispersy
-    dispersy = TrackerDispersy.get_instance(Callback(), unicode(opt.statedir), opt.port)
+    dispersy = TrackerDispersy.get_instance(Callback(), unicode(opt.statedir))
     dispersy.endpoint = StandaloneEndpoint(dispersy, opt.port, opt.ip)
     dispersy.endpoint.start()
     dispersy.define_auto_load(TrackerCommunity)
