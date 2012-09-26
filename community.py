@@ -535,15 +535,15 @@ class Community(object):
                 dprint(self._cid.encode("HEX"), " reuse #", cache.times_used, " (packets received: ", cache.responses_received, "; ", hex(cache.bloom_filter._filter), ")")
             return cache.time_low, cache.time_high, cache.modulo, cache.offset, cache.bloom_filter
 
-        time_low, time_high, modulo, offset, bloom = self.dispersy_sync_bloom_filter_strategy()
+        sync = self.dispersy_sync_bloom_filter_strategy()
+        if sync:
+            self._sync_cache = SyncCache(*sync)
+            self._sync_cache.candidate = request_cache.helper_candidate
+            if __debug__:
+                self._DEBUG_NEW += 1
+                dprint(self._cid.encode("HEX"), " new sync bloom (", self._DEBUG_REUSE, "/", self._DEBUG_NEW, "~", round(1.0 * self._DEBUG_REUSE / self._DEBUG_NEW, 2), ")")
 
-        self._sync_cache = SyncCache(time_low, time_high, modulo, offset, bloom)
-        self._sync_cache.candidate = request_cache.helper_candidate
-        if __debug__:
-            self._DEBUG_NEW += 1
-            dprint(self._cid.encode("HEX"), " new sync bloom (", self._DEBUG_REUSE, "/", self._DEBUG_NEW, "~", round(1.0 * self._DEBUG_REUSE / self._DEBUG_NEW, 2), ")")
-
-        return time_low, time_high, modulo, offset, bloom
+        return sync
 
     @runtime_duration_warning(0.5)
     def dispersy_claim_sync_bloom_filter_simple(self):
