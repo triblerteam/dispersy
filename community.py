@@ -514,7 +514,9 @@ class Community(object):
             cache = self._sync_cache
             for message in messages:
                 if (cache.time_low <= message.distribution.global_time <= cache.time_high and
-                    cache.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
+                    cache.candidate and
+                    message.candidate and
+                    cache.candidate.sock_addr == message.candidate.sock_addr):
                     cache.bloom_filter.add(message.packet)
                     cache.responses_received += 1
 
