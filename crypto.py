@@ -232,8 +232,33 @@ else:
         assert len(signature) == ec_signature_length(ec), [len(signature), ec_signature_length(ec)]
         length = len(signature) / 2
         try:
-            mpi_r = "".join((_struct_L.pack(length + 1), "\x00", signature[:length]))
-            mpi_s = "".join((_struct_L.pack(length + 1), "\x00", signature[length:]))
+            r = signature[:length]
+            # remove all "\x00" prefixes
+            while r and r[0] == "\x00":
+                r = r[1:]
+            # prepend "\x00" when the most significant bit is set
+            if ord(r[0]) & 128:
+                r = "\x00" + r
+
+            s = signature[length:]
+            # remove all "\x00" prefixes
+            while s and s[0] == "\x00":
+                s = s[1:]
+            # prepend "\x00" when the most significant bit is set
+            if ord(s[0]) & 128:
+                s = "\x00" + s
+
+            mpi_r = _struct_L.pack(len(r)) + r
+            mpi_s = _struct_L.pack(len(s)) + s
+
+            # mpi_r3 = bn_to_mpi(bin_to_bn(signature[:length]))
+            # mpi_s3 = bn_to_mpi(bin_to_bn(signature[length:]))
+
+            # if not mpi_r == mpi_r3:
+            #     raise RuntimeError([mpi_r.encode("HEX"), mpi_r3.encode("HEX")])
+            # if not mpi_s == mpi_s3:
+            #     raise RuntimeError([mpi_s.encode("HEX"), mpi_s3.encode("HEX")])
+
             return bool(ec.verify_dsa(digest, mpi_r, mpi_s))
 
         except:
@@ -248,6 +273,13 @@ if __debug__:
             value = getattr(EC, name)
             if isinstance(value, int) and value == curve:
                 return name
+
+    def mpi_test():
+        for _ in xrange(100):
+            for curve in sorted([unicode(attr) for attr in dir(EC) if attr.startswith("NID_")]):
+                ec = ec_generate_key(curve)
+                if not ec_verify(ec, "foo-bar", ec_sign(ec, "foo-bar")):
+                    raise RuntimeError("crypto fail")
 
     def speed():
         curves = {}
