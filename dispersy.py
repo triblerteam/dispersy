@@ -4625,8 +4625,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             # walk
             assert community.dispersy_enable_candidate_walker
             assert community.dispersy_enable_candidate_walker_responses
-            community.dispersy_take_step(allow_sync)
-            steps += 1
+            try:
+                community.dispersy_take_step(allow_sync)
+                steps += 1
+            except Exception:
+                dprint(community.cid.encode("HEX"), " causes an exception during dispersy_take_step", exception=True, level="error")
 
             optimaltime = start + steps * optimaldelay
             actualtime = time()
