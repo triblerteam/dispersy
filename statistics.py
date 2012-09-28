@@ -72,6 +72,8 @@ class CommunityStatistics(Statistics):
         self.hex_cid = community.cid.encode("HEX")
         self.hex_mid = community.my_member.mid.encode("HEX")
         self.mid = community.my_member.mid
+        self.sync_bloom_new = 0
+        self.sync_bloom_reuse = 0
         self.update()
 
     def update(self, database=False):

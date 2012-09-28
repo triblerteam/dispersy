@@ -296,8 +296,6 @@ class Community(object):
         # sync range bloom filters
         self._sync_cache = None
         if __debug__:
-            self._DEBUG_NEW = 0
-            self._DEBUG_REUSE = 0
             b = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate)
             dprint("sync bloom:    size: ", int(ceil(b.size // 8)), ";  capacity: ", b.get_capacity(self.dispersy_sync_bloom_filter_error_rate), ";  error-rate: ", self.dispersy_sync_bloom_filter_error_rate)
 
@@ -538,23 +536,21 @@ class Community(object):
         if (self._sync_cache and
             self._sync_cache.responses_received > 0 and
             self._sync_cache.times_used < 100):
+            self._statistics.sync_bloom_reuse += 1
             cache = self._sync_cache
             cache.times_used += 1
             cache.responses_received = 0
             cache.candidate = request_cache.helper_candidate
 
-            if __debug__:
-                self._DEBUG_REUSE += 1
-                dprint(self._cid.encode("HEX"), " reuse #", cache.times_used, " (packets received: ", cache.responses_received, "; ", hex(cache.bloom_filter._filter), ")")
+            if __debug__: dprint(self._cid.encode("HEX"), " reuse #", cache.times_used, " (packets received: ", cache.responses_received, "; ", hex(cache.bloom_filter._filter), ")")
             return cache.time_low, cache.time_high, cache.modulo, cache.offset, cache.bloom_filter
 
         sync = self.dispersy_sync_bloom_filter_strategy()
         if sync:
             self._sync_cache = SyncCache(*sync)
             self._sync_cache.candidate = request_cache.helper_candidate
-            if __debug__:
-                self._DEBUG_NEW += 1
-                dprint(self._cid.encode("HEX"), " new sync bloom (", self._DEBUG_REUSE, "/", self._DEBUG_NEW, "~", round(1.0 * self._DEBUG_REUSE / self._DEBUG_NEW, 2), ")")
+            self._statistics.sync_bloom_new += 1
+            if __debug__: dprint(self._cid.encode("HEX"), " new sync bloom (", self._statistics.sync_bloom_reuse, "/", self._statistics.sync_bloom_new, "~", round(1.0 * self._statistics.sync_bloom_reuse / self._statistics.sync_bloom_new, 2), ")")
 
         return sync
 
