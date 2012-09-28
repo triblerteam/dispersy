@@ -24,6 +24,7 @@ from .dprint import dprint
 from .member import DummyMember, Member
 from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
+from .statistics import CommunityStatistics
 from .timeline import Timeline
 
 # update version information directly from SVN
@@ -307,6 +308,16 @@ class Community(object):
         # random seed, used for sync range
         self._random = Random(self._cid)
         self._nrsyncpackets = 0
+
+        # statistics...
+        self._statistics = CommunityStatistics(self)
+
+    @property
+    def statistics(self):
+        """
+        The Statistics instance.
+        """
+        return self._statistics
 
     def _download_master_member_identity(self):
         assert not self._master_member.public_key

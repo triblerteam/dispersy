@@ -70,7 +70,8 @@ from .payload import MissingSequencePayload, MissingProofPayload
 from .payload import SignatureRequestPayload, SignatureResponsePayload
 from .requestcache import Cache, RequestCache
 from .resolution import PublicResolution, LinearResolution
-from .revision import update_revision_information, get_revision_information
+from .revision import update_revision_information
+from .statistics import DispersyStatistics
 from .singleton import Singleton
 
 # update version information directly from SVN
@@ -115,7 +116,7 @@ class IntroductionRequestCache(Cache):
         # _periodically_cleanup_candidates
         if __debug__:
             dprint("walker timeout for ", self.helper_candidate)
-            self.community.dispersy._statistics.walk_fail(self.helper_candidate.sock_addr)
+            self.community.dispersy.statistics.dict_inc(self.community.dispersy.statistics.walk_fail, self.helper_candidate.sock_addr)
 
         # we choose to set the entire helper to inactive instead of just the community where the
         # timeout occurred.  this will allow us to quickly respond to nodes going offline, while the
@@ -212,137 +213,6 @@ class MissingSequenceCache(MissingSomethingCache):
     def message_to_identifier(message):
         return "-missing-sequence-%s-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.name.encode("UTF-8"), message.distribution.sequence_number)
 
-class Statistics(object):
-    def __init__(self):
-        self._start = time()
-        self._sequence_number = 0
-        self._walk_attempt = 0
-        self._walk_success = 0
-        self._walk_reset = 0
-        self.drop_count = 0
-        self.success_count = 0
-        if __debug__:
-            self._drop = {}
-            self._delay = {}
-            self._success = {}
-            self._outgoing = {}
-            self._walk_fail = {}
-            self._attachment = {}
-
-    def info(self):
-        """
-        Returns all statistics.
-        """
-        if __debug__:
-            return {"drop":self._drop,
-                    "delay":self._delay,
-                    "success":self._success,
-                    "outgoing":self._outgoing,
-                    "sequence_number":self._sequence_number,
-                    "start":self._start,
-                    "runtime":time() - self._start,
-                    "walk_attempt":self._walk_attempt,
-                    "walk_success":self._walk_success,
-                    "walk_reset":self._walk_reset,
-                    "walk_fail":self._walk_fail,
-                    "drop_count":self.drop_count,
-                    "success_count":self.success_count,
-                    "attachment":self._attachment}
-
-        else:
-            return {"sequence_number":self._sequence_number,
-                    "start":self._start,
-                    "runtime":time() - self._start,
-                    "walk_attempt":self._walk_attempt,
-                    "walk_success":self._walk_success,
-                    "walk_reset":self._walk_reset,
-                    "drop_count":self.drop_count,
-                    "success_count":self.success_count}
-
-    def reset(self):
-        """
-        Returns, and subsequently removes, all statistics.
-        """
-        try:
-            return self.info()
-
-        finally:
-            self._sequence_number += 1
-            self._walk_attempt = 0
-            self._walk_success = 0
-            self._walk_reset = 0
-            self.drop_count = 0
-            self.success_count = 0
-            if __debug__:
-                self._drop = {}
-                self._delay = {}
-                self._success = {}
-                self._outgoing = {}
-                self._walk_fail = {}
-                self._attachment = {}
-
-    if __debug__:
-        def drop(self, key, byte_count, amount=1):
-            """
-            Called when an incoming packet or message failed a check and was dropped.
-            """
-            assert isinstance(key, (str, unicode))
-            assert isinstance(byte_count, (int, long))
-            assert isinstance(amount, (int, long))
-            a, b = self._drop.get(key, (0, 0))
-            self._drop[key] = (a+amount, b+byte_count)
-
-        def delay(self, key, byte_count, amount=1):
-            """
-            Called when an incoming packet or message was delayed.
-            """
-            assert isinstance(key, (str, unicode))
-            assert isinstance(byte_count, (int, long))
-            assert isinstance(amount, (int, long))
-            a, b = self._delay.get(key, (0, 0))
-            self._delay[key] = (a+amount, b+byte_count)
-
-        def success(self, key, byte_count, amount=1):
-            """
-            Called when an incoming message was accepted.
-            """
-            assert isinstance(key, (str, unicode))
-            assert isinstance(byte_count, (int, long))
-            assert isinstance(amount, (int, long))
-            a, b = self._success.get(key, (0, 0))
-            self._success[key] = (a+amount, b+byte_count)
-
-        def outgoing(self, key, byte_count, amount=1):
-            """
-            Called when a message send using the _send(...) method
-            """
-            assert isinstance(key, (str, unicode))
-            assert isinstance(byte_count, (int, long))
-            assert isinstance(amount, (int, long))
-            a, b = self._outgoing.get(key, (0, 0))
-            self._outgoing[key] = (a+amount, b+byte_count)
-
-        def walk_fail(self, sock_addr):
-            if sock_addr in self._walk_fail:
-                self._walk_fail[sock_addr] += 1
-            else:
-                self._walk_fail[sock_addr] = 1
-
-        def increment_attachment(self, cid):
-            if cid in self._attachment:
-                self._attachment[cid] += 1
-            else:
-                self._attachment[cid] = 1
-
-    def increment_walk_attempt(self):
-        self._walk_attempt += 1
-
-    def increment_walk_success(self):
-        self._walk_success += 1
-
-    def increment_walk_reset(self):
-        self._walk_reset += 1
-
 class Dispersy(Singleton):
     """
     The Dispersy class provides the interface to all Dispersy related commands, managing the in- and
@@ -435,7 +305,7 @@ class Dispersy(Singleton):
         self._callback.register(self._watchdog)
 
         # statistics...
-        self._statistics = Statistics()
+        self._statistics = DispersyStatistics(self)
 
         # memory profiler
         if "--memory-dump" in sys.argv:
@@ -454,8 +324,6 @@ class Dispersy(Singleton):
         if __debug__:
             self._callback.register(self._stats_candidates)
             self._callback.register(self._stats_detailed_candidates)
-            self._callback.register(self._stats_info)
-            self._callback.register(self._stats_bandwidth)
 
     @staticmethod
     def _guess_lan_address():
@@ -828,7 +696,7 @@ class Dispersy(Singleton):
 
         if __debug__:
             # count the number of times that a community was attached
-            self._statistics.increment_attachment(community.cid)
+            self._statistics.dict_inc(self._statistics.attachment, community.cid)
 
             # schedule the sanity check... it also checks that the dispersy-identity is available and
             # when this is a create or join this message is created only after the attach_community
@@ -1191,7 +1059,7 @@ class Dispersy(Singleton):
                         pass
                     else:
                         if __debug__:
-                            self._statistics.outgoing(u"-duplicate-undo-", len(proof), 1)
+                            self._statistics.dict_inc(self._statistics.outgoing, u"-duplicate-undo-")
                         self._endpoint.send([message.candidate], [str(proof)])
 
             else:
@@ -1390,7 +1258,7 @@ class Dispersy(Singleton):
                             pass
                         else:
                             if __debug__:
-                                self._statistics.outgoing(u"-sequence-", len(packet), 1)
+                                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
                             self._endpoint.send([message.candidate], [str(packet)])
 
                     return DropMessage(message, "old message by member^global_time")
@@ -1488,7 +1356,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                         if message.distribution.history_size == 1:
                             packet_id, have_packet = tim.values()[0]
                             if __debug__:
-                                self._statistics.outgoing(u"-sequence-", len(have_packet), 1)
+                                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
                             self._endpoint.send([message.candidate], [have_packet])
 
                         if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (older than ", min(tim), ")")
@@ -1936,14 +1804,14 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             if isinstance(message, DelayMessage):
                 if __debug__:
                     dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
-                    self._statistics.delay("om_message_batch:%s" % message.delayed, len(message.delayed.packet))
+                    self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
                 message.create_request()
                 return False
 
             elif isinstance(message, DropMessage):
                 if __debug__:
                     dprint(message.dropped.candidate, " drop: ", message.dropped.name, " (", message, ")", level="warning")
-                    self._statistics.drop("on_message_batch:%s" % message, len(message.dropped.packet))
+                    self._statistics.dict_inc(self._statistics.drop, "on_message_batch:%s" % message)
                 self._statistics.drop_count += 1
                 return False
 
@@ -1989,7 +1857,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         # store to disk and update locally
         if __debug__:
             dprint("in... ", len(messages), " ", meta.name, " messages from ", ", ".join(str(candidate) for candidate in set(message.candidate for message in messages)))
-            self._statistics.success(meta.name, sum(len(message.packet) for message in messages), len(messages))
+            self._statistics.dict_inc(self._statistics.success, meta.name, len(messages))
         self.store_update_forward(messages, True, True, False)
         self._statistics.success_count += len(messages)
 
@@ -2037,7 +1905,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except KeyError:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown community) from ", candidate, level="warning")
-                    self._statistics.drop("_convert_packets_into_batch:unknown community", len(packet))
+                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown community")
                 self._statistics.drop_count += 1
                 continue
 
@@ -2047,7 +1915,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except KeyError:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown conversion) from ", candidate, level="warning")
-                    self._statistics.drop("_convert_packets_into_batch:unknown conversion", len(packet))
+                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown conversion")
                 self._statistics.drop_count += 1
                 continue
 
@@ -2058,7 +1926,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except DropPacket, exception:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception,") from ", candidate, level="warning")
-                    self._statistics.drop("_convert_packets_into_batch:decode_meta_message:%s" % exception, len(packet))
+                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:decode_meta_message:%s" % exception)
                 self._statistics.drop_count += 1
 
     def _convert_batch_into_messages(self, batch):
@@ -2081,13 +1949,13 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except DropPacket, exception:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception, ") from ", candidate, level="warning")
-                    self._statistics.drop("_convert_batch_into_messages:%s" % exception, len(packet))
+                    self._statistics.dict_inc(self._statistics.drop, "_convert_batch_into_messages:%s" % exception)
                 self._statistics.drop_count += 1
 
             except DelayPacket, delay:
                 if __debug__:
                     dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)
-                    self._statistics.delay("_convert_batch_into_messages:%s" % delay, len(packet))
+                    self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
                 delay.create_request(candidate, packet)
 
     def _store(self, messages):
@@ -2413,7 +2281,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
     def create_introduction_request(self, community, destination, allow_sync, forward=True):
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
 
-        self._statistics.increment_walk_attempt()
+        self._statistics.walk_attempt += 1
         cache = IntroductionRequestCache(community, destination)
         destination.walk(community, time(), cache.timeout_delay)
 
@@ -2669,7 +2537,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if packets:
                     if __debug__:
                         dprint("syncing ", len(packets), " packets (", sum(len(packet) for packet in packets), " bytes) over [", time_low, ":", time_high, "] selecting (%", message.payload.modulo, "+", message.payload.offset, ") to " , message.candidate)
-                        self._statistics.outgoing(u"-sync-", sum(len(packet) for packet in packets), len(packets))
+                        self._statistics.dict_inc(self._statistics.outgoing, u"-sync-", len(packets))
                     self._endpoint.send([message.candidate], packets)
 
     def check_introduction_response(self, messages):
@@ -2735,7 +2603,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             self.wan_address_vote(payload.destination_address, candidate)
 
             # increment statistics only the first time
-            self._statistics.increment_walk_success()
+            self._statistics.walk_success += 1
 
             # get cache object linked to this request and stop timeout from occurring
             cache = self._request_cache.pop(payload.identifier, IntroductionRequestCache)
@@ -2968,13 +2836,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if __debug__:
                     # note that the statistics is different from the truth when less than NODE_COUNT
                     # candidates can be found
-                    self._statistics.outgoing(meta.name, sum(len(message.packet) for message in messages) * meta.destination.node_count, len(messages) * meta.destination.node_count)
+                    self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages) * meta.destination.node_count)
                 return all(self._endpoint.send(list(islice(self.yield_random_candidates(meta.community), meta.destination.node_count)), [message.packet]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
             if __debug__:
-                self._statistics.outgoing(meta.name, sum(len(message.packet) for message in messages) * sum(len(message.destination.candidates) for message in messages), sum(len(message.destination.candidates) for message in messages))
+                self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages))
             return all(self._endpoint.send(message.destination.candidates, [message.packet]) for message in messages if message.destination.candidates)
 
         elif isinstance(meta.destination, MemberDestination):
@@ -3072,7 +2940,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                                                                      (community.database_id, member.database_id))]
         if packets:
             if __debug__:
-                self._statistics.outgoing(u"-malicious-proof", sum(len(packet) for packet in packets), len(packets))
+                self._statistics.dict_inc(self._statistics.outgoing, u"-malicious-proof", len(packets))
             self._endpoint.send([candidate], packets)
 
     def create_missing_message(self, community, candidate, member, global_time, response_func=None, response_args=(), timeout=10.0):
@@ -3112,7 +2980,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             if __debug__:
                 # responses is an iterator, for __debug__ we need a list
                 responses = list(responses)
-                self._statistics.outgoing(u"-missing-message", sum(len(packet) for packet in responses), len(responses))
+                self._statistics.dict_inc(self._statistics.outgoing, u"-missing-message", len(responses))
             self._endpoint.send([candidate], [packet for _, packet in responses])
 
     def create_missing_last_message(self, community, candidate, member, message, count_, response_func=None, response_args=(), timeout=10.0):
@@ -3356,7 +3224,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             if packets:
                 if __debug__:
                     dprint("responding with ", len(packets), " identity messages")
-                    self._statistics.outgoing(u"-dispersy-identity", sum(len(packet) for packet in packets), len(packets))
+                    self._statistics.dict_inc(self._statistics.outgoing, u"-dispersy-identity", len(packets))
                 self._endpoint.send([message.candidate], packets)
 
             else:
@@ -3693,7 +3561,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     assert key in requests[candidate.sock_addr][1], [key, sorted(numbers), lowest, highest]
                     dprint("Syncing ", len(packet), " member:", key[0], " message:", key[1], " sequence:", key[2], " to " , candidate)
 
-                self._statistics.outgoing(u"-sequence-", sum(len(packet) for packet in packets), len(packets))
+                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-", len(packets))
             self._endpoint.send([candidate], packets)
 
     def create_missing_proof(self, community, candidate, message, response_func=None, response_args=(), timeout=10.0):
@@ -3735,7 +3603,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if allowed and proofs:
                     if __debug__:
                         dprint(message.candidate, " found ", len(proofs), " [",", ".join("%s %d@%d" % (proof.name, proof.authentication.member.database_id, proof.distribution.global_time) for proof in proofs), "] for message ", msg.name, " ", message.payload.member.database_id, "@", message.payload.global_time)
-                        self._statistics.outgoing(u"-proof-", sum(len(proof.packet) for proof in proofs), len(proofs))
+                        self._statistics.dict_inc(self._statistics.outgoing, u"-proof-", len(proofs))
                     self._endpoint.send([message.candidate], [proof.packet for proof in proofs])
 
                 else:
@@ -4083,7 +3951,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                         # the sender apparently does not have the offending dispersy-undo message, lets give
                         if __debug__:
-                            self._statistics.outgoing(msg.name, len(msg.packet), 1)
+                            self._statistics.dict_inc(self._statistics.outgoing, msg.name)
                         self._endpoint.send([message.candidate], [msg.packet])
 
                         if member == community.my_member:
@@ -4559,13 +4427,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                 # flush changes to disk every 1 minutes
                 self._database.commit()
+
             except Exception:
                 # OperationalError: database is locked
                 dprint(exception=True, level="error")
+
             except GeneratorExit:
-                if __debug__:
-                    dprint("shutdown")
-                    dprint(self.info(), pprint=True)
+                if __debug__: dprint("shutdown")
                 # unload all communities
                 try:
                     while True:
@@ -4638,7 +4506,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 # way out of sync!  reset start time
                 start = actualtime
                 steps = 0
-                self._statistics.increment_walk_reset()
+                self._statistics.walk_reset += 1
                 if __debug__:
                     dprint("can not keep up!  resetting walker start time!", level="warning")
                     DELAY = 0.0
@@ -4702,133 +4570,3 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                                    " %-7s" % category,
                                    " %-13s" % candidate.connection_type,
                                    " ", candidate)
-
-        def _stats_info(self):
-            while True:
-                yield 10.0
-                dprint(self._statistics.info(), pprint=True)
-
-        def _stats_bandwidth(self):
-            def _stats_bandwidth(total, values, title):
-                if total and values:
-                    c = sum(c for c, _ in values.itervalues())
-                    b = sum(b for _, b in values.itervalues())
-                    dprint("= %5d" % c, " %7.1f" % (b / 1024.0), "/%-7.1f" % (total / 1024.0), "  ~%6.2f%%" % (100.0 * b / total), "  %4db/p" % (b / c), "  ", title)
-
-                    for title, (c, b) in values.iteritems():
-                        dprint("  %5d" % c, " %7.1f" % (b / 1024.0), "/%-7.1f" % (total / 1024.0), "  ~%6.2f%%" % (100.0 * b / total), "  %4db/p" % (b / c), "  ", title)
-
-            while True:
-                yield 10.0
-                info = self._statistics.info()
-                total = self._endpoint.total_down
-                _stats_bandwidth(total, info["delay"], "DELAY")
-                _stats_bandwidth(total, info["drop"], "DROP")
-                _stats_bandwidth(total, info["success"], "SUCCESS")
-
-                total = self._endpoint.total_up
-                _stats_bandwidth(total, info["outgoing"], "OUTGOING")
-
-    def info(self, statistics=True, transfers=True, attributes=True, sync_ranges=True, database_sync=True, candidate=True):
-        """
-        Returns a dictionary with runtime statistical information.
-
-        The dictionary should only contain simple data types such as dictionaries, lists, tuples,
-        strings, integers, etc.  Just no objects, methods, and the like.
-
-        Depending on __debug__ more or less information may be available.  Note that Release
-        versions do NOT run __debug__ mode and hence may return less information.
-        """
-        # when something is removed or changed, the major version number is incremented.  when
-        # somethind is added, the minor version number is incremented.
-
-        # 1.1: added info["statistics"]
-        # 1.2: bugfix in Community.free_sync_range, should free more ranges; changed
-        #      dispersy_candidate_request_member_count to 3 down from 10
-        # 1.3: bugfix in dispersy.py where messages with identicat payload (fully binary unique)
-        #      could be generated with a different signature (a signature contains random elements)
-        #      making the two unique messages different from a bloom filter perspective.  we now
-        #      replace one message with the other thoughout the system.
-        # 1.4: added info["statistics"]["outgoing"] containing all calls to _send(...)
-        # 1.5: replaced some dispersy_candidate_... attributes and added a dump of the candidates
-        # 1.6: new random walk candidates and my LAN and WAN addresses
-        # 1.7: removed several community attributes, no longer calling reset on self._statistics
-        # 1.8: added busy_time to the statistics (delay caused by overloaded cpu/disk)
-        # 1.9: removed sync_ranges
-        # 2.0: changed the statistics.  total_up and total_down are now both (amount, byte_count) tuples
-        # 2.1: community["candidates"] is now be None when the candidate walker is disabled, new
-        #      "dispersy_enable_candidate_walker" attribute
-        # 2.2: community["candidates"] is again always a list, new
-        #      "dispersy_enable_candidate_walker_responses" attribute
-        # 2.3: added info["timestamp"], community["candidates"] is no longer sorted
-        # 2.4: added database_version
-        # 2.5: removed delay, drop, outgoing, and success statistics (memory usage)
-        # 2.6: added community["acceptable_global_time"],
-        #      community["dispersy_acceptable_global_time_range"]
-        # 2.7: added community["database_id"]
-        # 2.8: added global_time to candidates
-        # 2.9: added connection_type
-        # 3.0: added info["statistics"]["walk_attempt"] and info["statistics"]["walk_success"]
-        # 3.1: removed busy_time from statistics
-        # 3.2: removed address specific information from info["statistics"]["outgoing"]
-        #      all info["statistics"] are now stored in info directly
-        #      info["total_up"] and info["total_down"] are now always present
-        # 3.3: added info["walk_fail"] in __debug__ mode
-        # 3.4: added info["walk_reset"]
-        # 3.4: added info["attachment"] in __debug__ mode
-        # 3.5: added info["revision"]
-        # 3.6: added info["success_count"] and info["drop_count"]
-        # 3.7: added info["communities"][index]["hex_mid"]
-
-        now = time()
-        info = {"version":3.6,
-                "class":"Dispersy",
-                "lan_address":self._lan_address,
-                "wan_address":self._wan_address,
-                "timestamp":now,
-                "database_version":self._database.database_version,
-                "connection_type":self._connection_type,
-                "total_up":self._endpoint.total_up,
-                "total_down":self._endpoint.total_down,
-                "revision":get_revision_information()}
-
-        if statistics:
-            info.update(self._statistics.info())
-
-        info["communities"] = []
-        for community in self._communities.itervalues():
-            community_info = {"classification":community.get_classification(),
-                              "database_id":community.database_id,
-                              "hex_cid":community.cid.encode("HEX"),
-                              "hex_mid":community.my_member.mid.encode("HEX"),
-                              "global_time":community.global_time,
-                              "acceptable_global_time":community.acceptable_global_time,
-                              "dispersy_acceptable_global_time_range":community.dispersy_acceptable_global_time_range,
-                              "database_version":community.database_version}
-            info["communities"].append(community_info)
-
-            if attributes:
-                community_info["attributes"] = dict((attr, getattr(community, attr))
-                                                    for attr
-                                                    in ("dispersy_sync_bloom_filter_error_rate",
-                                                        "dispersy_sync_bloom_filter_bits",
-                                                        "dispersy_sync_response_limit",
-                                                        "dispersy_missing_sequence_response_limit",
-                                                        "dispersy_enable_candidate_walker",
-                                                        "dispersy_enable_candidate_walker_responses"))
-
-            # if sync_ranges:
-            #     community_info["sync_ranges"] = [{"time_low":range_.time_low, "space_freed":range_.space_freed, "space_remaining":range_.space_remaining, "capacity":range_.capacity}
-            #                                      for range_
-            #                                      in community._sync_ranges]
-
-            if database_sync:
-                community_info["database_sync"] = dict(self._database.execute(u"SELECT meta_message.name, COUNT(sync.id) FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? GROUP BY sync.meta_message", (community.database_id,)))
-
-            if candidate:
-                community_info["candidates"] = [(candidate.lan_address, candidate.wan_address, candidate.get_global_time(community)) for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now)]
-
-                if __debug__: dprint(community_info["classification"], " has ", len(community_info["candidates"]), " candidates")
-
-        if __debug__: dprint(info, pprint=True)
-        return info
