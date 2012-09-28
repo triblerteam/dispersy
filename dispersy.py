@@ -4093,7 +4093,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                 # 2. cleanup sync table.  everything except what we need to tell others this
                 # community is no longer available
-                self._database.execute(u"DELETE FROM sync WHERE id NOT IN (" + u", ".join(u"?" for _ in packet_ids) + ")", list(packet_ids))
+                self._database.execute(u"DELETE FROM sync WHERE community = ? AND id NOT IN (" + u", ".join(u"?" for _ in packet_ids) + ")", [community.database_id] + list(packet_ids))
 
                 # 3. cleanup the malicious_proof table.  we need nothing here anymore
                 self._database.execute(u"DELETE FROM malicious_proof WHERE community = ?", (community.database_id,))
