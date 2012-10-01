@@ -8,6 +8,7 @@ Community instance.
 @contact: dispersy@frayja.com
 """
 
+from sys import maxint
 from hashlib import sha1
 from itertools import islice
 from math import ceil
@@ -26,6 +27,7 @@ from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
 from .statistics import CommunityStatistics
 from .timeline import Timeline
+from Tribler.dispersy.distribution import LastSyncDistribution
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -527,7 +529,13 @@ class Community(object):
                 oktype = message.distribution.priority > 32
                 oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
                 okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
+                
                 if oktime and okmodulo:
+                    if isinstance(message.distribution, LastSyncDistribution):
+                        #this could potentially cause problems as the previous message should be removed from the bloomfilter
+                        #setting responses_received to -maxint to let the if > 0 fail
+                        cache.responses_received = -maxint
+                    
                     if oktype: #if not oktype, then still count it as a valid response
                         cache.bloom_filter.add(message.packet)
                     
