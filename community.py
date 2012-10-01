@@ -527,8 +527,9 @@ class Community(object):
                 oktype = message.distribution.priority > 32
                 oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
                 okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
-                if oktype and oktime and okmodulo:
-                    cache.bloom_filter.add(message.packet)
+                if oktime and okmodulo:
+                    if oktype: #if not oktype, then still count it as a valid response
+                        cache.bloom_filter.add(message.packet)
                     
                     #if this message was received from the candidate we send the bloomfilter to0, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
