@@ -522,12 +522,16 @@ class Community(object):
         if self._sync_cache:
             cache = self._sync_cache
             for message in messages:
-                if (cache.time_low <= message.distribution.global_time <= cache.time_high and
-                    cache.candidate and
-                    message.candidate and
-                    cache.candidate.sock_addr == message.candidate.sock_addr):
+                #Niels: 01-10-2012 should as well check modulo if enabled
+                #check if this message should be placed in our cached bloomfilter
+                oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
+                okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
+                if oktime and okmodulo:
                     cache.bloom_filter.add(message.packet)
-                    cache.responses_received += 1
+                    
+                    #if this message was received from the candidate we send the bloomfilter to0, increment responses
+                    if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
+                        cache.responses_received += 1
 
     def dispersy_claim_sync_bloom_filter(self, request_cache):
         """
