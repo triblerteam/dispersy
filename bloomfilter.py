@@ -206,6 +206,9 @@ class BloomFilter(Constructor):
         assert 0 < f_error_rate < 1
         return self._get_n_capacity(self._m_size, f_error_rate)
 
+    def get_bits_checked(self):
+        return sum(self._filter & (1 << i) for i in range(self._m_size))
+
     @property
     def size(self):
         """

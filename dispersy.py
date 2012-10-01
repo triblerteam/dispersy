@@ -2331,9 +2331,10 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
                     # BLOOM_FILTER must have been correctly filled
                     binary = bloom_filter.bytes
+                    bits = bloom_filter.get_bits_checked()
                     bloom_filter.clear()
                     bloom_filter.add_keys(packets)
-                    assert binary == bloom_filter.bytes, "does not match the given range [%d:%d] packets:%d %s" % (time_low, time_high, len(packets), type(community))
+                    assert binary == bloom_filter.bytes, "does not match the given range [%d:%d] packets:%d %s %d vs %d" % (time_low, time_high, len(packets), type(community), bits, bloom_filter.get_bits_checked())
 
                     # BLOOM_FILTER must be the same after transmission
                     bloom_filter = BloomFilter(binary, bloom_filter.functions, prefix=bloom_filter.prefix)
