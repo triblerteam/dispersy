@@ -524,9 +524,10 @@ class Community(object):
             for message in messages:
                 #Niels: 01-10-2012 should as well check modulo if enabled
                 #check if this message should be placed in our cached bloomfilter
+                oktype = message.distribution.priority > 32
                 oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
                 okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
-                if oktime and okmodulo:
+                if oktype and oktime and okmodulo:
                     cache.bloom_filter.add(message.packet)
                     
                     #if this message was received from the candidate we send the bloomfilter to0, increment responses
