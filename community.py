@@ -531,7 +531,7 @@ class Community(object):
                 okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
                 
                 if oktime and okmodulo:
-                    if isinstance(message.distribution, LastSyncDistribution):
+                    if isinstance(message.meta.distribution, LastSyncDistribution):
                         #this could potentially cause problems as the previous message should be removed from the bloomfilter
                         #setting responses_received to -maxint to let the if > 0 fail
                         cache.responses_received = -maxint
