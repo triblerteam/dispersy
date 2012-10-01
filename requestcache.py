@@ -85,10 +85,13 @@ class RequestCache(object):
         cache = self._identifiers.get(identifier)
         if __debug__: dprint("timeout on ", identifier_to_string(identifier), " for ", cache)
         cache.on_timeout()
-        if cache.cleanup_delay:
-            self._callback.register(self._on_cleanup, (identifier,), id_="requestcache-%s" % identifier, delay=cache.cleanup_delay)
-        else:
-            del self._identifiers[identifier]
+        
+        #Niels: 01-10-2012 if identifier is not yet removed by timeout method
+        if identifier in self._identifiers:
+            if cache.cleanup_delay:
+                self._callback.register(self._on_cleanup, (identifier,), id_="requestcache-%s" % identifier, delay=cache.cleanup_delay)
+            else:
+                del self._identifiers[identifier]
 
     def _on_cleanup(self, identifier):
         assert identifier in self._identifiers
