@@ -535,6 +535,7 @@ class Community(object):
                         #this could potentially cause problems as the previous message should be removed from the bloomfilter
                         #setting responses_received to -maxint to let the if > 0 fail
                         cache.responses_received = -maxint
+                        return
                     
                     if oktype: #if not oktype, then still count it as a valid response
                         cache.bloom_filter.add(message.packet)
