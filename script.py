@@ -291,16 +291,16 @@ class ScenarioScriptBase(ScriptBase):
                     self.set_offline()
                 
             #print statistics
-            total_dropped = sum([amount for amount, bytes in self._dispersy._statistics._drop.itervalues()])
-            log("dispersy.log", "statistics", total_send = self._dispersy.endpoint.total_up, total_received = self._dispersy.endpoint.total_down, total_dropped = total_dropped, walk_attempt = self._dispersy._statistics._walk_attempt, walk_success = self._dispersy._statistics._walk_success, conn_type = self._dispersy._connection_type)
+            log("dispersy.log", "statistics", total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, conn_type = self._dispersy.statistics.connection_type)
 
             total_received = {}
             didChange = False
-            for key, values in self._dispersy._statistics._success.iteritems():
-                key = make_valid_key(key)
-                total_received[key] = values[0]
-                if prev_total_received.get(key, None) != values[0]:
-                    didChange = True
+            if hasattr(self._dispersy.statistics, 'success'):
+                for key, values in self._dispersy.statistics.success.iteritems():
+                    key = make_valid_key(key)
+                    total_received[key] = values[0]
+                    if prev_total_received.get(key, None) != values[0]:
+                        didChange = True
 
             if didChange:
                 log("dispersy.log", "statistics-successful-messages", **total_received)
@@ -308,12 +308,13 @@ class ScenarioScriptBase(ScriptBase):
 
             total_dropped = {}
             didChange = False
-            for key, values in self._dispersy._statistics._drop.iteritems():
-                key = make_valid_key(key)
-                total_dropped[key] = values[0]
-                
-                if prev_total_dropped.get(key, None) != values[0]:
-                    didChange = True
+            if hasattr(self._dispersy.statistics, 'drop'):
+                for key, values in self._dispersy.statistics.drop.iteritems():
+                    key = make_valid_key(key)
+                    total_dropped[key] = values[0]
+                    
+                    if prev_total_dropped.get(key, None) != values[0]:
+                        didChange = True
 
             if didChange:
                 log("dispersy.log", "statistics-dropped-messages", **total_dropped)
