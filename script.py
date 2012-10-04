@@ -58,6 +58,7 @@ class ScriptBase(object):
         # self._dispersy.callback.register(self.run)
         if self.enable_wait_for_wan_address:
             self.add_testcase(self.wait_for_wan_address)
+            
         self.run()
 
     def add_testcase(self, func, args=()):
@@ -192,7 +193,7 @@ class ScenarioScriptBase(ScriptBase):
         #when should we start the next step?
         expected_time = self._starting_timestamp + (self._timestep * (self._stepcount + 1))
         diff = expected_time - time()
-
+        
         delay = max(0.0, diff)
         return delay
 
@@ -202,10 +203,10 @@ class ScenarioScriptBase(ScriptBase):
         log(self._logfile, "sleep", desync=desync, diff=delay, stepcount=self._stepcount)
 
     def join_community(self, my_member):
-        pass
+        raise NotImplementedError()
 
     def execute_scenario_cmds(self, commands):
-        pass
+        raise NotImplementedError()
 
     def run(self):
         self.add_testcase(self._run)
@@ -267,6 +268,8 @@ class ScenarioScriptBase(ScriptBase):
 
         # start the scenario
         while True:
+            if __debug__: log(self._logfile, "do_steps", step=self._stepcount)
+            
             # get commands
             scenario_cmds = self.get_commands_from_fp(scenario_fp, self._stepcount)
             availability_cmds = self.get_commands_from_fp(availability_fp, self._stepcount)
@@ -275,6 +278,7 @@ class ScenarioScriptBase(ScriptBase):
             if scenario_cmds == -1 and availability_cmds == -1:
                 if __debug__: log(self._logfile, "no-commands")
                 break
+            
             else:
                 # if there is a start in the avaibility_cmds then go
                 # online
