@@ -254,6 +254,7 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
+        if __debug__: log(self._logfile, "do_steps")
         self._dispersy._statistics.reset()
         
         scenario_fp = open('data/bartercast.log')
