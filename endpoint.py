@@ -5,10 +5,15 @@ from itertools import product
 from time import time
 from traceback import print_exc
 import errno
-import select
 import socket
 import sys
 import threading
+
+try:
+    from select import poll, POLLIN
+except ImportError:
+    #Niels 04-10-2012: poll does not exist on windows...
+    from selectpoll import poll, POLLIN
 
 from .candidate import Candidate
 from .revision import update_revision_information
@@ -96,10 +101,9 @@ class StandaloneEndpoint(Endpoint):
         recvfrom = self._socket.recvfrom
         register = self._dispersy.callback.register
         dispersythread_data_came_in = self.dispersythread_data_came_in
-        POLLIN, POLLOUT = select.POLLIN, select.POLLOUT
-        poll = select.poll()
-        poll.register(self._socket, POLLIN)
-        do_poll = poll.poll
+        pl = poll()
+        pl.register(self._socket, POLLIN)
+        do_poll = pl.poll
 
         while self._running:
             for _, event in do_poll(1.0):
