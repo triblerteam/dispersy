@@ -55,6 +55,25 @@ class DispersyStatistics(Statistics):
         self.wan_address = self._dispersy.wan_address
         for community in self.communities:
             community.update(database=database)
+            
+    def reset(self):
+        self.success_count = 0
+        self.drop_count = 0
+        
+        self.total_down = self._dispersy.endpoint.total_down = 0
+        self.total_up = self._dispersy.endpoint.total_up = 0
+        
+        self.walk_attempt = 0
+        self.walk_reset = 0
+        self.walk_success = 0
+        
+        if __debug__:
+            self.drop = {}
+            self.delay = {}
+            self.success = {}
+            self.outgoing = {}
+            self.walk_fail = {}
+            self.attachment = {}
 
 class CommunityStatistics(Statistics):
     def __init__(self, community):
