@@ -296,10 +296,10 @@ class ScenarioScriptBase(ScriptBase):
             total_received = {}
             didChange = False
             if hasattr(self._dispersy.statistics, 'success'):
-                for key, values in self._dispersy.statistics.success.iteritems():
+                for key, value in self._dispersy.statistics.success.iteritems():
                     key = make_valid_key(key)
-                    total_received[key] = values[0]
-                    if prev_total_received.get(key, None) != values[0]:
+                    total_received[key] = value
+                    if prev_total_received.get(key, None) != value:
                         didChange = True
 
             if didChange:
@@ -309,11 +309,11 @@ class ScenarioScriptBase(ScriptBase):
             total_dropped = {}
             didChange = False
             if hasattr(self._dispersy.statistics, 'drop'):
-                for key, values in self._dispersy.statistics.drop.iteritems():
+                for key, value in self._dispersy.statistics.drop.iteritems():
                     key = make_valid_key(key)
-                    total_dropped[key] = values[0]
+                    total_dropped[key] = value
                     
-                    if prev_total_dropped.get(key, None) != values[0]:
+                    if prev_total_dropped.get(key, None) != value:
                         didChange = True
 
             if didChange:
