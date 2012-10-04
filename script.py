@@ -255,6 +255,8 @@ class ScenarioScriptBase(ScriptBase):
 
     def do_steps(self):
         if __debug__: log(self._logfile, "do_steps")
+        print >> sys.stderr, "IN DOSTEPS"
+        
         self._dispersy._statistics.reset()
         
         scenario_fp = open('data/bartercast.log')
