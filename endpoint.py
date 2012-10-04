@@ -45,6 +45,10 @@ class Endpoint(object):
     def total_down(self):
         return self._total_down
 
+    def reset_statistics(self):
+        self._total_up = 0
+        self._total_down = 0
+
     def get_address(self):
         raise NotImplementedError()
 
