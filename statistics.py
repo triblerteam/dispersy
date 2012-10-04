@@ -60,8 +60,9 @@ class DispersyStatistics(Statistics):
         self.success_count = 0
         self.drop_count = 0
         
-        self.total_down = self._dispersy.endpoint.total_down = 0
-        self.total_up = self._dispersy.endpoint.total_up = 0
+        self._dispersy.endpoint.reset_statistics()
+        self.total_down = self._dispersy.endpoint.total_down
+        self.total_up = self._dispersy.endpoint.total_up
         
         self.walk_attempt = 0
         self.walk_reset = 0
