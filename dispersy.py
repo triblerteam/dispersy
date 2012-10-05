@@ -1047,10 +1047,14 @@ class Dispersy(Singleton):
             return False
 
         else:
+            seq = ''
+            if hasattr(message.distribution, 'sequence_number'):
+                seq = "-%d"%message.distribution.sequence_number
+            
             have_packet = str(have_packet)
             if have_packet == message.packet:
                 # exact binary duplicate, do NOT process the message
-                if __debug__: dprint(message.candidate, " received identical message [", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, " undone" if undone else "", "]")
+                if __debug__: dprint(message.candidate, " received identical message [", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, seq, " undone" if undone else "", "]", level="warning")
 
                 if undone:
                     try:
@@ -1066,7 +1070,7 @@ class Dispersy(Singleton):
                 signature_length = message.authentication.member.signature_length
                 if have_packet[:signature_length] == message.packet[:signature_length]:
                     # the message payload is binary unique (only the signature is different)
-                    if __debug__: dprint(message.candidate, " received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, "]")
+                    if __debug__: dprint(message.candidate, " received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, seq, "]", level="warning")
 
                     if have_packet < message.packet:
                         # replace our current message with the other one
@@ -1807,6 +1811,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
                     self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
+                self._statistics.delay_count += 1
                 message.create_request()
                 return False
 

@@ -28,10 +28,10 @@ class DelayPacket(Exception):
         if response:
             # process the response and the delayed message
             self._community.dispersy.on_incoming_packets([(candidate, delayed)])
-
+            self._community.dispersy.statistics.delay_succes += 1
         else:
             # timeout, do nothing
-            pass
+            self._community.dispersy.statistics.delay_timeout += 1
 
 class DelayPacketByMissingMember(DelayPacket):
     def __init__(self, community, missing_member_id):
@@ -119,10 +119,11 @@ class DelayMessage(Exception):
 
             # process the response and the delayed message
             self._delayed.community.dispersy.on_messages([self._delayed])
-
+            self._delayed.community.dispersy.statistics.delay_succes += 1
         else:
             # timeout, do nothing
             if __debug__: dprint("ignore ", self._delayed, " (no response was received)")
+            self._delayed.community.dispersy.statistics.delay_timeout += 1
 
 class DelayMessageByProof(DelayMessage):
     def create_request(self):
