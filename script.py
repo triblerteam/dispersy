@@ -254,7 +254,6 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
-        print >> sys.stderr, "IN DOSTEPS"
         if __debug__: log(self._logfile, "do_steps")
         
         self._dispersy._statistics.reset()
