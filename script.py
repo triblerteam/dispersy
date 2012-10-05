@@ -254,8 +254,6 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
-        if __debug__: log(self._logfile, "do_steps")
-        
         self._dispersy._statistics.reset()
         
         scenario_fp = open('data/bartercast.log')
@@ -270,8 +268,6 @@ class ScenarioScriptBase(ScriptBase):
 
         # start the scenario
         while True:
-            if __debug__: log(self._logfile, "do_steps", step=self._stepcount)
-            
             # get commands
             scenario_cmds = self.get_commands_from_fp(scenario_fp, self._stepcount)
             availability_cmds = self.get_commands_from_fp(availability_fp, self._stepcount)
