@@ -28,6 +28,8 @@ class DispersyStatistics(Statistics):
         self.start = self.timestamp = time()
         self.drop_count = 0
         self.delay_count = 0
+        self.delay_succes = 0
+        self.delay_timeout = 0
         self.success_count = 0
         self.received_count = 0
         self.timestamp = None
@@ -62,6 +64,8 @@ class DispersyStatistics(Statistics):
         self.success_count = 0
         self.drop_count = 0
         self.delay_count = 0
+        self.delay_succes = 0
+        self.delay_timeout = 0
         self.received_count = 0
         
         self._dispersy.endpoint.reset_statistics()
