@@ -38,7 +38,7 @@ class DispersyStatistics(Statistics):
         self.walk_success = 0
         self.wan_address = None
         self.update()
-
+        
         if __debug__:
             self.drop = {}
             self.delay = {}
