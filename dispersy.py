@@ -1958,6 +1958,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)
                     self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
+                self._statistics.delay_count += 1
                 delay.create_request(candidate, packet)
 
     def _store(self, messages):
