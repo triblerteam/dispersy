@@ -1811,8 +1811,8 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
                     self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
-                self._statistics.delay_count += 1
-                message.create_request()
+                if message.create_request():
+                    self._statistics.delay_count += 1
                 return False
 
             elif isinstance(message, DropMessage):
@@ -1963,8 +1963,9 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 if __debug__:
                     dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)
                     self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
-                self._statistics.delay_count += 1
-                delay.create_request(candidate, packet)
+                
+                if delay.create_request(candidate, packet):
+                    self._statistics.delay_count += 1
 
     def _store(self, messages):
         """
@@ -2047,7 +2048,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 for member1, member2 in set(order(message.authentication.members[0].database_id, message.authentication.members[1].database_id) for message in messages):
                     assert member1 < member2, [member1, member2]
                     all_items = list(self._database.execute(u"""
-SELECT sync.id
+SELECT sync.id, sync.global_time
 FROM sync
 JOIN double_signed_sync ON double_signed_sync.sync = sync.id
 WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed_sync.member2 = ?
@@ -2058,7 +2059,7 @@ ORDER BY sync.global_time, sync.packet""", (meta.database_id, member1, member2))
             else:
                 for member_database_id in set(message.authentication.member.database_id for message in messages):
                     all_items = list(self._database.execute(u"""
-SELECT id
+SELECT id, global_time
 FROM sync
 WHERE meta_message = ? AND member = ?
 ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
@@ -2066,13 +2067,16 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                         items.update(all_items[:len(all_items) - meta.distribution.history_size])
 
             if items:
-                self._database.executemany(u"DELETE FROM sync WHERE id = ?", items)
+                self._database.executemany(u"DELETE FROM sync WHERE id = ?", [(syncid, ) for syncid,_ in items])
                 assert len(items) == self._database.changes
                 if __debug__: dprint("deleted ", self._database.changes, " messages")
 
                 if is_double_member_authentication:
-                    self._database.executemany(u"DELETE FROM double_signed_sync WHERE sync = ?", items)
+                    self._database.executemany(u"DELETE FROM double_signed_sync WHERE sync = ?", [(syncid, ) for syncid,_ in items])
                     assert len(items) == self._database.changes
+                
+                #notify community that these messages are deleted
+                meta.community.dispersy_delete([global_time for _,global_time in items])
 
                 # update_sync_range.update(global_time for _, _, global_time in items)
 
@@ -2955,6 +2959,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
     def create_missing_message(self, community, candidate, member, global_time, response_func=None, response_args=(), timeout=10.0):
         # ensure that the identifier is 'triggered' somewhere, i.e. using
         # handle_missing_messages(messages, MissingMessageCache)
+        
+        sendRequest = False
 
         identifier = MissingMessageCache.properties_to_identifier(community, member, global_time)
         cache = self._request_cache.get(identifier, MissingMessageCache)
@@ -2966,9 +2972,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-message")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, [global_time]))
             self._forward([request])
+            
+            sendRequest = True
 
         if response_func:
             cache.callbacks.append((response_func, response_args))
+        
+        return sendRequest
 
     def on_missing_message(self, messages):
         responses = [] # (candidate, packet) tuples
@@ -3004,7 +3014,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             assert isinstance(response_args, tuple)
             assert isinstance(timeout, float)
             assert timeout > 0.0
-
+        
+        sendRequest = False
+        
         identifier = MissingLastMessageCache.properties_to_identifier(community, member, message)
         cache = self._request_cache.get(identifier, MissingLastMessageCache)
         if not cache:
@@ -3014,8 +3026,10 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-last-message")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, message, count_))
             self._forward([request])
+            sendRequest = True
 
         cache.callbacks.append((response_func, response_args))
+        return sendRequest
 
     def on_missing_last_message(self, messages):
         for message in messages:
@@ -3188,6 +3202,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         To verify a message signature we need the corresponding public key from the member who made
         the signature.  When we are missing a public key, we can request a dispersy-identity message
         which contains this public key.
+        
+        # @return True if actual request is made
         """
         if __debug__:
             from .community import Community
@@ -3200,6 +3216,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             assert isinstance(timeout, float)
             assert isinstance(forward, bool)
 
+        sendRequest = False
+        
         identifier = MissingMemberCache.properties_to_identifier(community, dummy_member)
         cache = self._request_cache.get(identifier, MissingMemberCache)
         if not cache:
@@ -3210,8 +3228,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-identity")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(dummy_member.mid,))
             self._forward([request])
+            
+            sendRequest = True
 
         cache.callbacks.append((response_func, response_args))
+        return sendRequest
 
     def on_missing_identity(self, messages):
         """
@@ -3461,6 +3482,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # ensure that the identifier is 'triggered' somewhere, i.e. using
         # handle_missing_messages(messages, MissingSequenceCache)
 
+        sendRequest = False
+
         # the MissingSequenceCache allows us to match the missing_high to the response_func
         identifier = MissingSequenceCache.properties_to_identifier(community, member, message, missing_high)
         cache = self._request_cache.get(identifier, MissingSequenceCache)
@@ -3488,6 +3511,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-sequence")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, message, missing_low, missing_high))
             self._forward([request])
+            
+            sendRequest = True
+        return sendRequest
 
     def on_missing_sequence(self, messages):
         """
@@ -3577,6 +3603,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # ensure that the identifier is 'triggered' somewhere, i.e. using
         # handle_missing_messages(messages, MissingProofCache)
 
+        sendRequest = False
         identifier = MissingProofCache.properties_to_identifier(community)
         cache = self._request_cache.get(identifier, MissingProofCache)
         if not cache:
@@ -3591,9 +3618,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-proof")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(message.authentication.member, message.distribution.global_time))
             self._forward([request])
+            sendRequest = True
 
         if response_func:
             cache.callbacks.append((response_func, response_args))
+        return sendRequest
 
     def on_missing_proof(self, messages):
         community = messages[0].community
@@ -3999,6 +4028,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         # this might be a response to a dispersy-missing-sequence
         self.handle_missing_messages(messages, MissingSequenceCache)
+        meta.community.dispersy_undo(messages)
 
     def create_destroy_community(self, community, degree, sign_with_master=False, store=True, update=True, forward=True):
         if __debug__:

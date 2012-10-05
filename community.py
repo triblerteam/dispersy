@@ -529,20 +529,39 @@ class Community(object):
                 oktype = message.distribution.priority > 32
                 oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
                 okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
-                
                 if oktime and okmodulo:
-                    if isinstance(message.meta.distribution, LastSyncDistribution):
-                        #this could potentially cause problems as the previous message should be removed from the bloomfilter
-                        #setting responses_received to -maxint to let the if > 0 fail
-                        cache.responses_received = -maxint
-                        return
-                    
                     if oktype: #if not oktype, then still count it as a valid response
                         cache.bloom_filter.add(message.packet)
                     
                     #if this message was received from the candidate we send the bloomfilter to0, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
+                        
+    def dispersy_undo(self, messages):
+        """
+        Called after MESSAGES have been undone in the database.
+        """
+        if self._sync_cache:
+            cache = self._sync_cache
+            for message in messages:
+                oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
+                okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
+                if oktime and okmodulo:
+                    cache.responses_received = -maxint
+                    return
+                
+    def dispersy_delete(self, globaltimes):
+        """
+        Called after MESSAGES have been deleted in the database.
+        """
+        if self._sync_cache:
+            cache = self._sync_cache
+            for global_time in globaltimes:
+                oktime = cache.time_low <= global_time <= cache.time_high
+                okmodulo = (global_time + cache.offset) % cache.modulo == 0
+                if oktime and okmodulo:
+                    cache.responses_received = -maxint
+                    return
 
     def dispersy_claim_sync_bloom_filter(self, request_cache):
         """

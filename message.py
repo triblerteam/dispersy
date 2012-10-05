@@ -22,6 +22,7 @@ class DelayPacket(Exception):
     def create_request(self, candidate, delayed):
         # create and send a request.  once the response is received the _process_delayed_packet can
         # pass the (candidate, delayed) tuple to dispersy for reprocessing
+        # @return True if actual request is made
         raise NotImplementedError()
 
     def _process_delayed_packet(self, response, candidate, delayed):
@@ -41,7 +42,7 @@ class DelayPacketByMissingMember(DelayPacket):
         self._missing_member_id = missing_member_id
 
     def create_request(self, candidate, delayed):
-        self._community.dispersy.create_missing_identity(self._community, candidate, DummyMember(self._missing_member_id), self._process_delayed_packet, (candidate, delayed))
+        return self._community.dispersy.create_missing_identity(self._community, candidate, DummyMember(self._missing_member_id), self._process_delayed_packet, (candidate, delayed))
 
 class DelayPacketByMissingLastMessage(DelayPacket):
     def __init__(self, community, member, message, count):
@@ -56,7 +57,7 @@ class DelayPacketByMissingLastMessage(DelayPacket):
         self._count = count
 
     def create_request(self, candidate, delayed):
-        self._community.dispersy.create_missing_last_message(self._community, candidate, self._member, self._message, self._count, self._process_delayed_packet, (candidate, delayed))
+        return self._community.dispersy.create_missing_last_message(self._community, candidate, self._member, self._message, self._count, self._process_delayed_packet, (candidate, delayed))
 
 class DelayPacketByMissingMessage(DelayPacket):
     def __init__(self, community, member, global_time):
@@ -71,7 +72,7 @@ class DelayPacketByMissingMessage(DelayPacket):
         self._global_time = global_time
 
     def create_request(self, candidate, delayed):
-        self._community.dispersy.create_missing_message(self._community, candidate, self._member, self._global_time, self._process_delayed_packet, (candidate, delayed))
+        return self._community.dispersy.create_missing_message(self._community, candidate, self._member, self._global_time, self._process_delayed_packet, (candidate, delayed))
 
 class DropPacket(Exception):
     """
@@ -108,6 +109,7 @@ class DelayMessage(Exception):
     def create_request(self):
         # create and send a request.  once the response is received the _process_delayed_message can
         # pass the (candidate, delayed) tuple to dispersy for reprocessing
+        # @return True if actual request is made
         raise NotImplementedError()
 
     def _process_delayed_message(self, response):
@@ -128,7 +130,7 @@ class DelayMessage(Exception):
 class DelayMessageByProof(DelayMessage):
     def create_request(self):
         community = self._delayed.community
-        community.dispersy.create_missing_proof(community, self._delayed.candidate, self._delayed, self._process_delayed_message)
+        return community.dispersy.create_missing_proof(community, self._delayed.candidate, self._delayed, self._process_delayed_message)
 
 class DelayMessageBySequence(DelayMessage):
     def __init__(self, delayed, missing_low, missing_high):
@@ -144,7 +146,7 @@ class DelayMessageBySequence(DelayMessage):
 
     def create_request(self):
         community = self._delayed.community
-        community.dispersy.create_missing_sequence(community, self._delayed.candidate, self._delayed.authentication.member, self._delayed.meta, self._missing_low, self._missing_high, self._process_delayed_message)
+        return community.dispersy.create_missing_sequence(community, self._delayed.candidate, self._delayed.authentication.member, self._delayed.meta, self._missing_low, self._missing_high, self._process_delayed_message)
 
 class DelayMessageByMissingMessage(DelayMessage):
     def __init__(self, delayed, member, global_time):
@@ -161,7 +163,7 @@ class DelayMessageByMissingMessage(DelayMessage):
 
     def create_request(self):
         community = self._delayed.community
-        community.dispersy.create_missing_message(community, self._delayed.candidate, self._member, self._global_time, self._process_delayed_message)
+        return community.dispersy.create_missing_message(community, self._delayed.candidate, self._member, self._global_time, self._process_delayed_message)
 
 class DropMessage(Exception):
     """
