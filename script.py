@@ -265,6 +265,7 @@ class ScenarioScriptBase(ScriptBase):
         self._stepcount = 1
         prev_total_received = {}
         prev_total_dropped = {}
+        prev_total_delayed = {}
 
         # start the scenario
         while True:
@@ -322,6 +323,20 @@ class ScenarioScriptBase(ScriptBase):
             if didChange:
                 log("dispersy.log", "statistics-dropped-messages", **total_dropped)
                 prev_total_dropped = total_dropped
+                
+            total_delayed = {}
+            didChange = False
+            if hasattr(self._dispersy.statistics, 'delay'):
+                for key, value in self._dispersy.statistics.delay.iteritems():
+                    key = make_valid_key(key)
+                    total_delayed[key] = value
+                    
+                    if prev_total_delayed.get(key, None) != value:
+                        didChange = True
+
+            if didChange:
+                log("dispersy.log", "statistics-delayed-messages", **total_dropped)
+                prev_total_delayed = total_delayed
 
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])

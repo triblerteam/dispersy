@@ -24,6 +24,7 @@ class DispersyStatistics(Statistics):
         self.connection_type = None
         self.database_version = dispersy.database.database_version
         self.drop_count = 0
+        self.delay_count = 0
         self.lan_address = None
         self.revision = get_revision_information()
         self.start = self.timestamp = time()
@@ -59,6 +60,7 @@ class DispersyStatistics(Statistics):
     def reset(self):
         self.success_count = 0
         self.drop_count = 0
+        self.delay_count = 0
         
         self._dispersy.endpoint.reset_statistics()
         self.total_down = self._dispersy.endpoint.total_down
