@@ -4028,7 +4028,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         # this might be a response to a dispersy-missing-sequence
         self.handle_missing_messages(messages, MissingSequenceCache)
-        meta.community.dispersy_undo(messages)
+        meta.community.dispersy_undo([ message.payload.packet for message in messages ])
 
     def create_destroy_community(self, community, degree, sign_with_master=False, store=True, update=True, forward=True):
         if __debug__:
