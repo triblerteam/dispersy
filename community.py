@@ -20,14 +20,13 @@ from .conversion import BinaryConversion, DefaultConversion
 from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from .decorator import documentation, runtime_duration_warning
 from .dispersy import Dispersy
-from .distribution import SyncDistribution
+from .distribution import SyncDistribution, LastSyncDistribution
 from .dprint import dprint
 from .member import DummyMember, Member
 from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
 from .statistics import CommunityStatistics
 from .timeline import Timeline
-from Tribler.dispersy.distribution import LastSyncDistribution
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
