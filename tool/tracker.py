@@ -208,7 +208,7 @@ class TrackerDispersy(Dispersy):
         self._my_member = Member(ec_to_public_bin(ec), ec_to_private_bin(ec))
 
         # location of persistent storage
-        self._persistent_storage_filenam = os.path.join(working_directory, "persistent-storage.data")
+        self._persistent_storage_filename = os.path.join(working_directory, "persistent-storage.data")
 
         callback.register(self._load_persistent_storage)
         callback.register(self._unload_communities)
@@ -216,7 +216,7 @@ class TrackerDispersy(Dispersy):
 
     @property
     def persistent_storage_filename(self):
-        return self._persistent_storage_filenam
+        return self._persistent_storage_filename
 
     def get_community(self, cid, load=False, auto_load=True):
         try:
@@ -228,7 +228,7 @@ class TrackerDispersy(Dispersy):
     def _load_persistent_storage(self):
         # load all destroyed communities
         try:
-            packets = [packet.decode("HEX") for _, packet in (line.split() for line in open(self._persistent_storage_filenam, "r") if not line.startswith("#"))]
+            packets = [packet.decode("HEX") for _, packet in (line.split() for line in open(self._persistent_storage_filename, "r") if not line.startswith("#"))]
         except IOError:
             pass
         else:
