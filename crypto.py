@@ -93,7 +93,7 @@ else:
 
     from hashlib import sha1, sha224, sha256, sha512, md5
     from math import ceil
-    from M2Crypto.m2 import bn_to_bin, bin_to_bn, bn_to_mpi, mpi_to_bn
+    # from M2Crypto.m2 import bn_to_bin, bin_to_bn, bn_to_mpi, mpi_to_bn
     from M2Crypto import EC, BIO
     from struct import Struct
 
