@@ -10,10 +10,8 @@ from itertools import groupby
 
 from .database import Database
 from .distribution import FullSyncDistribution
+from .dprint import dprint
 from .revision import update_revision_information
-
-if __debug__:
-    from .dprint import dprint
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -502,6 +500,7 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
             for handler in progress_handlers:
                 handler.Update(progress, "Saving the results...")
 
+            dprint(deletes, lines=1, box=1, force=1)
             # self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
 
             # self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
