@@ -40,7 +40,7 @@ class DispersyStatistics(Statistics):
         self.walk_success = 0
         self.wan_address = None
         self.update()
-        
+
         if __debug__:
             self.drop = {}
             self.delay = {}
@@ -59,7 +59,7 @@ class DispersyStatistics(Statistics):
         self.wan_address = self._dispersy.wan_address
         for community in self.communities:
             community.update(database=database)
-            
+
     def reset(self):
         self.success_count = 0
         self.drop_count = 0
@@ -67,15 +67,15 @@ class DispersyStatistics(Statistics):
         self.delay_succes = 0
         self.delay_timeout = 0
         self.received_count = 0
-        
+
         self._dispersy.endpoint.reset_statistics()
         self.total_down = self._dispersy.endpoint.total_down
         self.total_up = self._dispersy.endpoint.total_up
-        
+
         self.walk_attempt = 0
         self.walk_reset = 0
         self.walk_success = 0
-        
+
         if __debug__:
             self.drop = {}
             self.delay = {}
@@ -115,5 +115,3 @@ class CommunityStatistics(Statistics):
                            in self._community.dispersy.yield_candidates(self._community)]
         if database:
             self.database = dict(self._community.dispersy.database.execute(u"SELECT meta_message.name, COUNT(sync.id) FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? GROUP BY sync.meta_message", (self._community.database_id,)))
-
-
