@@ -500,11 +500,10 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
             for handler in progress_handlers:
                 handler.Update(progress, "Saving the results...")
 
-            dprint(deletes, lines=1, box=1, force=1)
-            # self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
+            self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
 
-            # self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
-            # self.commit()
+            self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
+            self.commit()
 
             for handler in progress_handlers:
                 handler.Destroy()
