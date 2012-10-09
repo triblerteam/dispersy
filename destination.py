@@ -78,7 +78,7 @@ class CommunityDestination(Destination):
     the current candidate list.
 
     At the time of sending at most NODE_COUNT addresses are obtained using
-    dispersy.yield_random_candidates(...) to receive the message.
+    community.yield_random_candidates(...) to receive the message.
     """
     class Implementation(Destination.Implementation):
         @property
@@ -91,7 +91,7 @@ class CommunityDestination(Destination):
 
         NODE_COUNT is an integer giving the number of nodes where, when the message is created, the
         message must be sent to.  These nodes are selected using the
-        dispersy.yield_random_candidates(...) method.  NODE_COUNT must be zero or higher.
+        community.yield_random_candidates(...) method.  NODE_COUNT must be zero or higher.
         """
         assert isinstance(node_count, int)
         assert node_count >= 0

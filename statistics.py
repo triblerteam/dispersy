@@ -112,6 +112,6 @@ class CommunityStatistics(Statistics):
         self.global_time = self._community.global_time
         self.candidates = [(candidate.lan_address, candidate.wan_address, candidate.get_global_time(self._community))
                            for candidate
-                           in self._community.dispersy.yield_candidates(self._community)]
+                           in self._community.dispersy_yield_candidates()]
         if database:
             self.database = dict(self._community.dispersy.database.execute(u"SELECT meta_message.name, COUNT(sync.id) FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? GROUP BY sync.meta_message", (self._community.database_id,)))

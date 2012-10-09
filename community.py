@@ -342,7 +342,7 @@ class Community(object):
                     assert self._master_member.public_key
                     break
 
-            for candidate in islice(self._dispersy.yield_random_candidates(self), 1):
+            for candidate in islice(self.dispersy_yield_random_candidates(), 1):
                 if __debug__: dprint(self._cid.encode("HEX"), " asking for master member from ", candidate)
                 self._dispersy.create_missing_identity(self, candidate, self._master_member, on_dispersy_identity)
                 break
@@ -1278,6 +1278,18 @@ class Community(object):
 
     def dispersy_on_dynamic_settings(self, messages, initializing=False):
         return self._dispersy.on_dynamic_settings(self, messages, initializing)
+
+    @documentation(Dispersy.yield_candidates)
+    def dispersy_yield_candidates(self):
+        return self._dispersy.yield_candidates(self)
+
+    @documentation(Dispersy.yield_random_candidates)
+    def dispersy_yield_random_candidates(self):
+        return self._dispersy.yield_random_candidates(self)
+
+    @documentation(Dispersy.yield_walk_candidates)
+    def dispersy_yield_walk_candidates(self):
+        return self._dispersy.yield_walk_candidates(self)
 
     def dispersy_cleanup_community(self, message):
         """
