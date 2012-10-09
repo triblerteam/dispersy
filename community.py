@@ -531,11 +531,11 @@ class Community(object):
                 if oktime and okmodulo:
                     if oktype: #if not oktype, then still count it as a valid response
                         cache.bloom_filter.add(message.packet)
-                    
+
                     #if this message was received from the candidate we send the bloomfilter to0, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
-                        
+
     def dispersy_undo(self, globaltimes):
         """
         Called after MESSAGES have been undone in the database.
@@ -548,7 +548,7 @@ class Community(object):
                 if oktime and okmodulo:
                     cache.responses_received = -maxint
                     return
-                
+
     def dispersy_delete(self, globaltimes):
         """
         Called after MESSAGES have been deleted in the database.
