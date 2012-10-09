@@ -1812,7 +1812,8 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                     dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
                     self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
                 if message.create_request():
-                    self._statistics.delay_count += 1
+                    self._statistics.delay_send += 1
+                self._statistics.delay_count += 1
                 return False
 
             elif isinstance(message, DropMessage):
@@ -1965,7 +1966,8 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                     self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
                 
                 if delay.create_request(candidate, packet):
-                    self._statistics.delay_count += 1
+                    self._statistics.delay_send += 1
+                self._statistics.delay_count += 1
 
     def _store(self, messages):
         """
@@ -3481,7 +3483,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
     def create_missing_sequence(self, community, candidate, member, message, missing_low, missing_high, response_func=None, response_args=(), timeout=10.0):
         # ensure that the identifier is 'triggered' somewhere, i.e. using
         # handle_missing_messages(messages, MissingSequenceCache)
-
+        
         sendRequest = False
 
         # the MissingSequenceCache allows us to match the missing_high to the response_func
@@ -3513,6 +3515,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             self._forward([request])
             
             sendRequest = True
+           
         return sendRequest
 
     def on_missing_sequence(self, messages):
