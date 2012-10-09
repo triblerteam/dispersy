@@ -486,16 +486,16 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
                     out_of_sequence = False
                     for sequence_number, (packet_id, _, packet) in enumerate(iterator, 1):
                         if out_of_sequence:
-                            deletes.append(packet_id)
+                            deletes.append((packet_id,))
                         else:
                             message = convert_packet_to_message(str(packet), community, verify=False)
                             if message.distribution.sequence_number != sequence_number:
                                 out_of_sequence = True
-                                deletes.append(packet_id)
+                                deletes.append((packet_id,))
 
                         progress += 1
                         for handler in progress_handlers:
-                            handler.Update(progress, "found %d bugs" % len(deletes))
+                            handler.Update(progress)
 
             for handler in progress_handlers:
                 handler.Update(progress, "Saving the results...")
