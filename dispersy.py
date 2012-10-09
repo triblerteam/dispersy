@@ -2261,7 +2261,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
     def take_step(self, community, allow_sync):
         if community.cid in self._communities:
             try:
-                candidate = self.yield_walk_candidates(community).next()
+                candidate = community.dispersy_yield_walk_candidates().next()
 
             except StopIteration:
                 if __debug__:
@@ -2429,7 +2429,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         requests = []
         now = time()
 
-        random_candidate_iterator = self.yield_random_candidates(community)
+        random_candidate_iterator = community.dispersy_yield_random_candidates()
         random_candidate_stack = []
 
         for message in messages:
@@ -2850,7 +2850,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     # note that the statistics is different from the truth when less than NODE_COUNT
                     # candidates can be found
                     self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages) * meta.destination.node_count)
-                return all(self._endpoint.send(list(islice(self.yield_random_candidates(meta.community), meta.destination.node_count)), [message.packet]) for message in messages)
+                return all(self._endpoint.send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message.packet]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
