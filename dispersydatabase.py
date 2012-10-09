@@ -6,9 +6,10 @@ This module provides an interface to the Dispersy database.
 @contact: dispersy@frayja.com
 """
 
-from os import path
+from itertools import groupby
 
 from .database import Database
+from .distribution import FullSyncDistribution
 from .revision import update_revision_information
 
 if __debug__:
@@ -17,7 +18,7 @@ if __debug__:
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
 
-LATEST_VERSION = 13
+LATEST_VERSION = 14
 
 schema = u"""
 CREATE TABLE member(
@@ -342,11 +343,19 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
 
             # upgrade from version 13 to version 14
             if database_version < 14:
-                # there is no version 14 yet...
-                # if __debug__: dprint("upgrade database ", database_version, " -> ", 14)
-                # self.executescript(u"""UPDATE option SET value = '14' WHERE key = 'database_version';""")
+                if __debug__: dprint("upgrade database ", database_version, " -> ", 14)
+                # only effects check_community_database
+                self.executescript(u"""UPDATE option SET value = '14' WHERE key = 'database_version';""")
+                self.commit()
+                if __debug__: dprint("upgrade database ", database_version, " -> ", 14, " (done)")
+
+            # upgrade from version 14 to version 15
+            if database_version < 15:
+                # there is no version 15 yet...
+                # if __debug__: dprint("upgrade database ", database_version, " -> ", 15)
+                # self.executescript(u"""UPDATE option SET value = '15' WHERE key = 'database_version';""")
                 # self.commit()
-                # if __debug__: dprint("upgrade database ", database_version, " -> ", 14, " (done)")
+                # if __debug__: dprint("upgrade database ", database_version, " -> ", 15, " (done)")
                 pass
 
         return LATEST_VERSION
@@ -433,6 +442,70 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
 
             self.execute(u"UPDATE community SET database_version = 8 WHERE id = ?", (community.database_id,))
             self.commit()
+
+            for handler in progress_handlers:
+                handler.Destroy()
+
+        if database_version < 14:
+            if __debug__: dprint("upgrade community ", database_version, " -> ", 14)
+
+            # patch notes:
+            #
+            # because of a bug in handling messages with sequence numbers, it was possible for
+            # messages to be stored in the database with missing sequence numbers.  I.e. numbers 1,
+            # 2, and 5 could be stored leaving 3 and 4 missing.
+            #
+            # this results in the problem that the message with sequence number 5 is believed to be
+            # a message with sequence number 3.  resulting in an inconsistent database and an
+            # inability to correctly handle missing sequence messages and incoming messages with
+            # specific sequence numbers.
+            #
+            # we will 'solve' this by removing all messages after a 'gap' occurred in the sequence
+            # numbers.  In our example it will result in the message with sequence number 5 to be
+            # removed.
+            #
+            # we choose not to call any undo methods because both the timeline and the votes can
+            # handle the resulting multiple calls to the undo callback.
+
+            # all meta messages that use sequence numbers
+            metas = [meta for meta in community.get_meta_messages() if isinstance(meta.distribution, FullSyncDistribution) and meta.distribution.enable_sequence_number]
+            convert_packet_to_message = community.dispersy.convert_packet_to_message
+
+            progress = 0
+            count = 0
+            deletes = []
+            for meta in metas:
+                i, = next(self.execute(u"SELECT COUNT(*) FROM sync WHERE meta_message = ?", (meta.database_id,)))
+                count += i
+            if __debug__: dprint("checking ", count, " sequence number enabled messages")
+            if count > 50:
+                progress_handlers = [handler("Upgrading database", "Please wait while we upgrade the database", count) for handler in community.dispersy.get_progress_handlers()]
+            else:
+                progress_handlers = []
+
+            for meta in metas:
+                for _, iterator in groupby(list(self.execute(u"SELECT id, member, packet FROM sync WHERE meta_message = ? GROUP BY member ORDER BY global_time", (meta.database_id,))), key=lambda tup: tup[1]):
+                    out_of_sequence = False
+                    for sequence_number, (packet_id, _, packet) in enumerate(iterator, 1):
+                        if out_of_sequence:
+                            deletes.append(packet_id)
+                        else:
+                            message = convert_packet_to_message(str(packet), community, verify=False)
+                            if message.distribution.sequence_number != sequence_number:
+                                out_of_sequence = True
+                                deletes.append(packet_id)
+
+                        progress += 1
+                        for handler in progress_handlers:
+                            handler.Update(progress, "found %d bugs" % len(deletes))
+
+            for handler in progress_handlers:
+                handler.Update(progress, "Saving the results...")
+
+            # self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
+
+            # self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
+            # self.commit()
 
             for handler in progress_handlers:
                 handler.Destroy()
