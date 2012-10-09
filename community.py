@@ -536,22 +536,9 @@ class Community(object):
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
                         
-    def dispersy_undo(self, messages):
+    def dispersy_undo(self, globaltimes):
         """
         Called after MESSAGES have been undone in the database.
-        """
-        if self._sync_cache:
-            cache = self._sync_cache
-            for message in messages:
-                oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
-                okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
-                if oktime and okmodulo:
-                    cache.responses_received = -maxint
-                    return
-                
-    def dispersy_delete(self, globaltimes):
-        """
-        Called after MESSAGES have been deleted in the database.
         """
         if self._sync_cache:
             cache = self._sync_cache
@@ -561,6 +548,12 @@ class Community(object):
                 if oktime and okmodulo:
                     cache.responses_received = -maxint
                     return
+                
+    def dispersy_delete(self, globaltimes):
+        """
+        Called after MESSAGES have been deleted in the database.
+        """
+        return self.dispersy_undo(globaltimes)
 
     def dispersy_claim_sync_bloom_filter(self, request_cache):
         """
