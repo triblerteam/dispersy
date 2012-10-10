@@ -16,7 +16,7 @@ from .revision import update_revision_information
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
 
-LATEST_VERSION = 14
+LATEST_VERSION = 15
 
 schema = u"""
 CREATE TABLE member(
@@ -339,21 +339,21 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
                 self.commit()
                 if __debug__: dprint("upgrade database ", database_version, " -> ", 13, " (done)")
 
-            # upgrade from version 13 to version 14
-            if database_version < 14:
-                if __debug__: dprint("upgrade database ", database_version, " -> ", 14)
-                # only effects check_community_database
-                self.executescript(u"""UPDATE option SET value = '14' WHERE key = 'database_version';""")
-                self.commit()
-                if __debug__: dprint("upgrade database ", database_version, " -> ", 14, " (done)")
-
-            # upgrade from version 14 to version 15
+            # upgrade from version 13 to version 15
             if database_version < 15:
-                # there is no version 15 yet...
-                # if __debug__: dprint("upgrade database ", database_version, " -> ", 15)
-                # self.executescript(u"""UPDATE option SET value = '15' WHERE key = 'database_version';""")
+                if __debug__: dprint("upgrade database ", database_version, " -> ", 15)
+                # only effects check_community_database
+                self.executescript(u"""UPDATE option SET value = '15' WHERE key = 'database_version';""")
+                self.commit()
+                if __debug__: dprint("upgrade database ", database_version, " -> ", 15, " (done)")
+
+            # upgrade from version 15 to version 16
+            if database_version < 16:
+                # there is no version 16 yet...
+                # if __debug__: dprint("upgrade database ", database_version, " -> ", 16)
+                # self.executescript(u"""UPDATE option SET value = '16' WHERE key = 'database_version';""")
                 # self.commit()
-                # if __debug__: dprint("upgrade database ", database_version, " -> ", 15, " (done)")
+                # if __debug__: dprint("upgrade database ", database_version, " -> ", 16, " (done)")
                 pass
 
         return LATEST_VERSION
@@ -444,8 +444,8 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
             for handler in progress_handlers:
                 handler.Destroy()
 
-        if database_version < 14:
-            if __debug__: dprint("upgrade community ", database_version, " -> ", 14)
+        if database_version < 15:
+            if __debug__: dprint("upgrade community ", database_version, " -> ", 15)
 
             # patch notes:
             #
@@ -475,20 +475,22 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
             for meta in metas:
                 i, = next(self.execute(u"SELECT COUNT(*) FROM sync WHERE meta_message = ?", (meta.database_id,)))
                 count += i
-            if __debug__: dprint("checking ", count, " sequence number enabled messages")
+            if __debug__: dprint("checking ", count, " sequence number enabled messages [", community.cid.encode("HEX"), "]")
             if count > 50:
                 progress_handlers = [handler("Upgrading database", "Please wait while we upgrade the database", count) for handler in community.dispersy.get_progress_handlers()]
             else:
                 progress_handlers = []
 
             for meta in metas:
-                for _, iterator in groupby(list(self.execute(u"SELECT id, member, packet FROM sync WHERE meta_message = ? GROUP BY member ORDER BY global_time", (meta.database_id,))), key=lambda tup: tup[1]):
+                for member_id, iterator in groupby(list(self.execute(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member, global_time", (meta.database_id,))), key=lambda tup: tup[1]):
                     out_of_sequence = False
                     for sequence_number, (packet_id, _, packet) in enumerate(iterator, 1):
+
                         if out_of_sequence:
                             deletes.append((packet_id,))
                         else:
                             message = convert_packet_to_message(str(packet), community, verify=False)
+                            assert message.authentication.member.database_id == member_id
                             if message.distribution.sequence_number != sequence_number:
                                 out_of_sequence = True
                                 deletes.append((packet_id,))
@@ -500,10 +502,13 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
             for handler in progress_handlers:
                 handler.Update(progress, "Saving the results...")
 
-            self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
+            if __debug__: dprint("will delete ", len(deletes), " packets from the database")
+            if deletes:
+                self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
+                assert len(deletes) == self.changes, [len(deletes), self.changes]
 
-            self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
-            self.commit()
+                self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
+                self.commit()
 
             for handler in progress_handlers:
                 handler.Destroy()
