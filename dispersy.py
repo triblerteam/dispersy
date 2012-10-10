@@ -705,7 +705,7 @@ class Dispersy(Singleton):
                     self.sanity_check(community)
                 except ValueError:
                     dprint(exception=True, level="error")
-                    assert False
+                    assert False, "One or more exceptions occurred during sanity check"
 
     def detach_community(self, community):
         """
@@ -2348,6 +2348,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     assert binary == bloom_filter.bytes or bits > bloom_filter.get_bits_checked(), "does not match the given range [%d:%d] packets:%d %s bits-set:%d vs %d" % (time_low, time_high, len(packets), type(community), bits, bloom_filter.get_bits_checked())
 
                     # BLOOM_FILTER must be the same after transmission
+                    binary = bloom_filter.bytes
                     bloom_filter = BloomFilter(binary, bloom_filter.functions, prefix=bloom_filter.prefix)
                     assert binary == bloom_filter.bytes, "problem with the long <-> binary conversion"
                     assert list(bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set after transmission"
@@ -4213,7 +4214,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # this might be a response to a dispersy-missing-proof or dispersy-missing-sequence
         self.handle_missing_messages(messages, MissingProofCache, MissingSequenceCache)
 
-    def sanity_check(self, community):
+    def sanity_check(self, community, test_identity=True, test_undo_other=True, test_binary=True, test_sequence_number=True, test_last_sync=True):
         """
         Check everything we can about a community.
 
@@ -4229,7 +4230,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         def select(sql, bindings):
             assert isinstance(sql, unicode)
             assert isinstance(bindings, tuple)
-            limit = 100
+            limit = 1000
             for offset in (i * limit for i in count()):
                 rows = list(self._database.execute(sql, bindings + (limit, offset)))
                 if rows:
@@ -4241,182 +4242,188 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if __debug__: dprint(community.cid.encode("HEX"), " start sanity check [db-id:", community.database_id, "]")
         enabled_messages = set(meta.database_id for meta in community.get_meta_messages())
 
-        try:
-            meta_identity = community.get_meta_message(u"dispersy-identity")
-        except KeyError:
-            # identity is not enabled
-            pass
-        else:
-            #
-            # ensure that the dispersy-identity for my member must be in the database
-            #
+        if test_identity:
             try:
-                member_id, = self._database.execute(u"SELECT id FROM member WHERE mid = ?", (buffer(community.my_member.mid),)).next()
-            except StopIteration:
-                raise ValueError("unable to find the public key for my member")
-
-            if not member_id == community.my_member.database_id:
-                raise ValueError("my member's database id is invalid", member_id, community.my_member.database_id)
-
-            try:
-                self._database.execute(u"SELECT 1 FROM private_key WHERE member = ?", (member_id,)).next()
-            except StopIteration:
-                raise ValueError("unable to find the private key for my member")
-
-            try:
-                self._database.execute(u"SELECT 1 FROM sync WHERE member = ? AND meta_message = ?", (member_id, meta_identity.database_id)).next()
-            except StopIteration:
-                raise ValueError("unable to find the dispersy-identity message for my member")
-
-            if __debug__: dprint("my identity is OK")
-
-            #
-            # the dispersy-identity must be in the database for each member that has one or more
-            # messages in the database
-            #
-            A = set(id_ for id_, in self._database.execute(u"SELECT member FROM sync WHERE community = ? GROUP BY member", (community.database_id,)))
-            B = set(id_ for id_, in self._database.execute(u"SELECT member FROM sync WHERE meta_message = ?", (meta_identity.database_id,)))
-            if not len(A) == len(B):
-                raise ValueError("inconsistent dispersy-identity messages.", A.difference(B))
-
-        try:
-            meta_undo_other = community.get_meta_message(u"dispersy-undo-other")
-        except KeyError:
-            # undo-other is not enabled
-            pass
-        else:
-
-            #
-            # ensure that we have proof for every dispersy-undo-other message
-            #
-            # TODO we are not taking into account that undo messages can be undone
-            for undo_packet_id, undo_packet_global_time, undo_packet in select(u"SELECT id, global_time, packet FROM sync WHERE community = ? AND meta_message = ? ORDER BY id LIMIT ? OFFSET ?", (community.database_id, meta_undo_other.database_id)):
-                undo_packet = str(undo_packet)
-                undo_message = self.convert_packet_to_message(undo_packet, community)
-
-                # get the message that undo_message refers to
+                meta_identity = community.get_meta_message(u"dispersy-identity")
+            except KeyError:
+                # identity is not enabled
+                pass
+            else:
+                #
+                # ensure that the dispersy-identity for my member must be in the database
+                #
                 try:
-                    packet, undone = self._database.execute(u"SELECT packet, undone FROM sync WHERE community = ? AND member = ? AND global_time = ?", (community.database_id, undo_message.payload.member.database_id, undo_message.payload.global_time)).next()
+                    member_id, = self._database.execute(u"SELECT id FROM member WHERE mid = ?", (buffer(community.my_member.mid),)).next()
                 except StopIteration:
-                    raise ValueError("found dispersy-undo-other but not the message that it refers to")
-                packet = str(packet)
-                message = self.convert_packet_to_message(packet, community)
+                    raise ValueError("unable to find the public key for my member")
 
-                if not undone:
-                    raise ValueError("found dispersy-undo-other but the message that it refers to is not undone")
+                if not member_id == community.my_member.database_id:
+                    raise ValueError("my member's database id is invalid", member_id, community.my_member.database_id)
 
-                if message.undo_callback is None:
-                    raise ValueError("found dispersy-undo-other but the message that it refers to does not have an undo_callback")
+                try:
+                    self._database.execute(u"SELECT 1 FROM private_key WHERE member = ?", (member_id,)).next()
+                except StopIteration:
+                    raise ValueError("unable to find the private key for my member")
 
-                # get the proof that undo_message is valid
-                allowed, proofs = community.timeline.check(undo_message)
+                try:
+                    self._database.execute(u"SELECT 1 FROM sync WHERE member = ? AND meta_message = ?", (member_id, meta_identity.database_id)).next()
+                except StopIteration:
+                    raise ValueError("unable to find the dispersy-identity message for my member")
 
-                if not allowed:
-                    raise ValueError("found dispersy-undo-other that, according to the timeline, is not allowed")
+                if __debug__: dprint("my identity is OK")
 
-                if not proofs:
-                    raise ValueError("found dispersy-undo-other that, according to the timeline, has no proof")
+                #
+                # the dispersy-identity must be in the database for each member that has one or more
+                # messages in the database
+                #
+                A = set(id_ for id_, in self._database.execute(u"SELECT member FROM sync WHERE community = ? GROUP BY member", (community.database_id,)))
+                B = set(id_ for id_, in self._database.execute(u"SELECT member FROM sync WHERE meta_message = ?", (meta_identity.database_id,)))
+                if not len(A) == len(B):
+                    raise ValueError("inconsistent dispersy-identity messages.", A.difference(B))
 
-                if __debug__: dprint("dispersy-undo-other packet ", undo_packet_id, "@", undo_packet_global_time, " referring ", undo_message.payload.packet.name, " ", undo_message.payload.member.database_id, "@", undo_message.payload.global_time, " is OK")
+        if test_undo_other:
+            try:
+                meta_undo_other = community.get_meta_message(u"dispersy-undo-other")
+            except KeyError:
+                # undo-other is not enabled
+                pass
+            else:
 
-        #
-        # ensure all packets in the database are valid and that the binary packets are consistent
-        # with the information stored in the database
-        #
-        for packet_id, member_id, global_time, meta_message_id, packet in select(u"SELECT id, member, global_time, meta_message, packet FROM sync WHERE community = ? ORDER BY id LIMIT ? OFFSET ?", (community.database_id,)):
-            if meta_message_id in enabled_messages:
-                packet = str(packet)
-                message = self.convert_packet_to_message(packet, community)
+                #
+                # ensure that we have proof for every dispersy-undo-other message
+                #
+                # TODO we are not taking into account that undo messages can be undone
+                for undo_packet_id, undo_packet_global_time, undo_packet in select(u"SELECT id, global_time, packet FROM sync WHERE community = ? AND meta_message = ? ORDER BY id LIMIT ? OFFSET ?", (community.database_id, meta_undo_other.database_id)):
+                    undo_packet = str(undo_packet)
+                    undo_message = self.convert_packet_to_message(undo_packet, community, verify=False)
 
-                if not message:
-                    raise ValueError("unable to convert packet ", packet_id, "@", global_time, " to message")
+                    # get the message that undo_message refers to
+                    try:
+                        packet, undone = self._database.execute(u"SELECT packet, undone FROM sync WHERE community = ? AND member = ? AND global_time = ?", (community.database_id, undo_message.payload.member.database_id, undo_message.payload.global_time)).next()
+                    except StopIteration:
+                        raise ValueError("found dispersy-undo-other but not the message that it refers to")
+                    packet = str(packet)
+                    message = self.convert_packet_to_message(packet, community, verify=False)
 
-                if not member_id == message.authentication.member.database_id:
-                    raise ValueError("inconsistent member in packet ", packet_id, "@", global_time)
+                    if not undone:
+                        raise ValueError("found dispersy-undo-other but the message that it refers to is not undone")
 
-                if not message.authentication.member.public_key:
-                    raise ValueError("missing public key for member ", member_id, " in packet ", packet_id, "@", global_time)
+                    if message.undo_callback is None:
+                        raise ValueError("found dispersy-undo-other but the message that it refers to does not have an undo_callback")
 
-                if not global_time == message.distribution.global_time:
-                    raise ValueError("inconsistent global time in packet ", packet_id, "@", global_time)
+                    # get the proof that undo_message is valid
+                    allowed, proofs = community.timeline.check(undo_message)
 
-                if not meta_message_id == message.database_id:
-                    raise ValueError("inconsistent meta message in packet ", packet_id, "@", global_time)
+                    if not allowed:
+                        raise ValueError("found dispersy-undo-other that, according to the timeline, is not allowed")
 
-                if not packet == message.packet:
-                    raise ValueError("inconsistent binary in packet ", packet_id, "@", global_time)
+                    if not proofs:
+                        raise ValueError("found dispersy-undo-other that, according to the timeline, has no proof")
 
-                if __debug__: dprint("packet ", packet_id, "@", global_time, " is OK")
+                    if __debug__: dprint("dispersy-undo-other packet ", undo_packet_id, "@", undo_packet_global_time, " referring ", undo_message.payload.packet.name, " ", undo_message.payload.member.database_id, "@", undo_message.payload.global_time, " is OK")
 
-        for meta in community.get_meta_messages():
+        if test_binary:
             #
-            # ensure that we have all sequence numbers for FullSyncDistribution packets
+            # ensure all packets in the database are valid and that the binary packets are consistent
+            # with the information stored in the database
             #
-            if isinstance(meta.distribution, FullSyncDistribution) and meta.distribution.enable_sequence_number:
-                counter = 0
-                counter_member_id = 0
-                exception = None
-                for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member, global_time LIMIT ? OFFSET ?", (meta.database_id,)):
-                    message = self.convert_packet_to_message(str(packet), community)
-                    assert message
+            for packet_id, member_id, global_time, meta_message_id, packet in select(u"SELECT id, member, global_time, meta_message, packet FROM sync WHERE community = ? ORDER BY id LIMIT ? OFFSET ?", (community.database_id,)):
+                if meta_message_id in enabled_messages:
+                    packet = str(packet)
+                    message = self.convert_packet_to_message(packet, community, verify=True)
 
-                    if member_id != counter_member_id:
-                        counter_member_id = member_id
-                        counter = 1
-                        if exception:
-                            break
+                    if not message:
+                        raise ValueError("unable to convert packet ", packet_id, "@", global_time, " to message")
 
-                    if not counter == message.distribution.sequence_number:
-                        dprint(meta.name, " has sequence number ", message.distribution.sequence_number, " expected ", counter, level="error")
-                        exception = ValueError("inconsistent sequence numbers in packet ", packet_id)
+                    if not member_id == message.authentication.member.database_id:
+                        raise ValueError("inconsistent member in packet ", packet_id, "@", global_time)
 
-                    counter += 1
+                    if not message.authentication.member.public_key:
+                        raise ValueError("missing public key for member ", member_id, " in packet ", packet_id, "@", global_time)
 
-                    if __debug__: dprint("FullSyncDistribution for '", meta.name, "' is OK (#", message.distribution.sequence_number, " ", message.authentication.member.database_id, "@", message.distribution.global_time, ")")
+                    if not global_time == message.distribution.global_time:
+                        raise ValueError("inconsistent global time in packet ", packet_id, "@", global_time)
 
-                if exception:
-                    raise exception
+                    if not meta_message_id == message.database_id:
+                        raise ValueError("inconsistent meta message in packet ", packet_id, "@", global_time)
 
-            #
-            # ensure that we have only history-size messages per member
-            #
-            if isinstance(meta.distribution, LastSyncDistribution):
-                if isinstance(meta.authentication, MemberAuthentication):
+                    if not packet == message.packet:
+                        raise ValueError("inconsistent binary in packet ", packet_id, "@", global_time)
+
+                    if __debug__: dprint("packet ", packet_id, "@", global_time, " is OK")
+
+        if test_sequence_number:
+            for meta in community.get_meta_messages():
+                #
+                # ensure that we have all sequence numbers for FullSyncDistribution packets
+                #
+                if isinstance(meta.distribution, FullSyncDistribution) and meta.distribution.enable_sequence_number:
                     counter = 0
                     counter_member_id = 0
-                    for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member ASC, global_time DESC LIMIT ? OFFSET ?", (meta.database_id,)):
-                        message = self.convert_packet_to_message(str(packet), community)
+                    exception = None
+                    for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member, global_time LIMIT ? OFFSET ?", (meta.database_id,)):
+                        message = self.convert_packet_to_message(str(packet), community, verify=False)
                         assert message
 
-                        if member_id == counter_member_id:
-                            counter += 1
-                        else:
+                        if member_id != counter_member_id:
                             counter_member_id = member_id
                             counter = 1
+                            if exception:
+                                break
 
-                        if counter > meta.distribution.history_size:
-                            raise ValueError("decayed packet ", packet_id, " still in database")
+                        if not counter == message.distribution.sequence_number:
+                            dprint(meta.name, " has sequence number ", message.distribution.sequence_number, " expected ", counter, level="error")
+                            exception = ValueError("inconsistent sequence numbers in packet ", packet_id)
+
+                        counter += 1
+
+                        if __debug__: dprint("FullSyncDistribution for '", meta.name, "' is ", "OK" if exception is None else "ERROR", " (#", message.distribution.sequence_number, " ", message.authentication.member.database_id, "@", message.distribution.global_time, ")")
+
+                    if exception:
+                        raise exception
+
+        if test_last_sync:
+            for meta in community.get_meta_messages():
+                #
+                # ensure that we have only history-size messages per member
+                #
+                if isinstance(meta.distribution, LastSyncDistribution):
+                    if isinstance(meta.authentication, MemberAuthentication):
+                        counter = 0
+                        counter_member_id = 0
+                        for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member ASC, global_time DESC LIMIT ? OFFSET ?", (meta.database_id,)):
+                            message = self.convert_packet_to_message(str(packet), community, verify=False)
+                            assert message
+
+                            if member_id == counter_member_id:
+                                counter += 1
+                            else:
+                                counter_member_id = member_id
+                                counter = 1
+
+                            if counter > meta.distribution.history_size:
+                                raise ValueError("decayed packet ", packet_id, " still in database")
+
+                            if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
+
+                    else:
+                        assert isinstance(meta.authentication, DoubleMemberAuthentication)
+                        for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member ASC, global_time DESC LIMIT ? OFFSET ?", (meta.database_id,)):
+                            message = self.convert_packet_to_message(str(packet), community, verify=False)
+                            assert message
+
+                            try:
+                                member1, member2 = self._database.execute(u"SELECT member1, member2 FROM double_signed_sync WHERE sync = ?", (packet_id,)).next()
+                            except StopIteration:
+                                raise ValueError("found double signed message without an entry in the double_signed_sync table")
+
+                            if not member1 < member2:
+                                raise ValueError("member1 (", member1, ") must always be smaller than member2 (", member2, ")")
+
+                            if not (member1 == member_id or member2 == member_id):
+                                raise ValueError("member1 (", member1, ") or member2 (", member2, ") must be the message creator (", member_id, ")")
 
                         if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
-
-                else:
-                    assert isinstance(meta.authentication, DoubleMemberAuthentication)
-                    for packet_id, member_id, packet in select(u"SELECT id, member, packet FROM sync WHERE meta_message = ? ORDER BY member ASC, global_time DESC LIMIT ? OFFSET ?", (meta.database_id,)):
-                        message = self.convert_packet_to_message(str(packet), community)
-                        assert message
-
-                        try:
-                            member1, member2 = self._database.execute(u"SELECT member1, member2 FROM double_signed_sync WHERE sync = ?", (packet_id,)).next()
-                        except StopIteration:
-                            raise ValueError("found double signed message without an entry in the double_signed_sync table")
-
-                        if not member1 < member2:
-                            raise ValueError("member1 (", member1, ") must always be smaller than member2 (", member2, ")")
-
-                        if not (member1 == member_id or member2 == member_id):
-                            raise ValueError("member1 (", member1, ") or member2 (", member2, ") must be the message creator (", member_id, ")")
-
-                    if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
 
         if __debug__: dprint(community.cid.encode("HEX"), " success")
 
