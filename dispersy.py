@@ -3488,7 +3488,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         identifier = MissingSequenceCache.properties_to_identifier(community, member, message, missing_high)
         cache = self._request_cache.get(identifier, MissingSequenceCache)
         if not cache:
-            if __debug__: dprint(identifier)
             cache = MissingSequenceCache(timeout)
             self._request_cache.set(identifier, cache)
 
@@ -3499,7 +3498,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         identifier = MissingSequenceOverviewCache.properties_to_identifier(community, member, message)
         overview = self._request_cache.get(identifier, MissingSequenceOverviewCache)
         if not overview:
-            if __debug__: dprint(identifier)
             overview = MissingSequenceOverviewCache(timeout)
             self._request_cache.set(identifier, overview)
 
