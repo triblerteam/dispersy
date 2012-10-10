@@ -522,16 +522,14 @@ class Community(object):
         if self._sync_cache:
             cache = self._sync_cache
             for message in messages:
-                #Niels: 01-10-2012 should as well check modulo if enabled
-                #check if this message should be placed in our cached bloomfilter
-                oktype = message.distribution.priority > 32
-                oktime = cache.time_low <= message.distribution.global_time <= cache.time_high
-                okmodulo = (message.distribution.global_time + cache.offset) % cache.modulo == 0
-                if oktime and okmodulo:
-                    if oktype: #if not oktype, then still count it as a valid response
-                        cache.bloom_filter.add(message.packet)
+                if (message.distribution.priority > 32 and
+                    cache.time_low <= message.distribution.global_time <= cache.time_high and
+                    (message.distribution.global_time + cache.offset) % cache.modulo == 0):
 
-                    #if this message was received from the candidate we send the bloomfilter to0, increment responses
+                    # update cached bloomfilter to avoid duplicates
+                    cache.bloom_filter.add(message.packet)
+
+                    # if this message was received from the candidate we send the bloomfilter too, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
 
