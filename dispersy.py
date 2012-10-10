@@ -2076,9 +2076,6 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                 if is_double_member_authentication:
                     self._database.executemany(u"DELETE FROM double_signed_sync WHERE sync = ?", [(syncid, ) for syncid,_ in items])
                     assert len(items) == self._database.changes
-                
-                #notify community that these messages are deleted
-                meta.community.dispersy_delete([global_time for _,global_time in items])
 
                 # update_sync_range.update(global_time for _, _, global_time in items)
 
@@ -2348,7 +2345,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     bits = bloom_filter.get_bits_checked()
                     bloom_filter.clear()
                     bloom_filter.add_keys(packets)
-                    assert binary == bloom_filter.bytes, "does not match the given range [%d:%d] packets:%d %s %d vs %d" % (time_low, time_high, len(packets), type(community), bits, bloom_filter.get_bits_checked())
+                    assert binary == bloom_filter.bytes or bits > bloom_filter.get_bits_checked(), "does not match the given range [%d:%d] packets:%d %s bits-set:%d vs %d" % (time_low, time_high, len(packets), type(community), bits, bloom_filter.get_bits_checked())
 
                     # BLOOM_FILTER must be the same after transmission
                     bloom_filter = BloomFilter(binary, bloom_filter.functions, prefix=bloom_filter.prefix)
@@ -4031,7 +4028,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         # this might be a response to a dispersy-missing-sequence
         self.handle_missing_messages(messages, MissingSequenceCache)
-        meta.community.dispersy_undo([message.payload.global_time for message in messages])
 
     def create_destroy_community(self, community, degree, sign_with_master=False, store=True, update=True, forward=True):
         if __debug__:

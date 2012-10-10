@@ -8,7 +8,6 @@ Community instance.
 @contact: dispersy@frayja.com
 """
 
-from sys import maxint
 from hashlib import sha1
 from itertools import islice
 from math import ceil
@@ -20,7 +19,7 @@ from .conversion import BinaryConversion, DefaultConversion
 from .crypto import ec_generate_key, ec_to_public_bin, ec_to_private_bin
 from .decorator import documentation, runtime_duration_warning
 from .dispersy import Dispersy
-from .distribution import SyncDistribution, LastSyncDistribution
+from .distribution import SyncDistribution
 from .dprint import dprint
 from .member import DummyMember, Member
 from .resolution import PublicResolution, LinearResolution, DynamicResolution
@@ -535,25 +534,6 @@ class Community(object):
                     #if this message was received from the candidate we send the bloomfilter to0, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
-
-    def dispersy_undo(self, globaltimes):
-        """
-        Called after MESSAGES have been undone in the database.
-        """
-        if self._sync_cache:
-            cache = self._sync_cache
-            for global_time in globaltimes:
-                oktime = cache.time_low <= global_time <= cache.time_high
-                okmodulo = (global_time + cache.offset) % cache.modulo == 0
-                if oktime and okmodulo:
-                    cache.responses_received = -maxint
-                    return
-
-    def dispersy_delete(self, globaltimes):
-        """
-        Called after MESSAGES have been deleted in the database.
-        """
-        return self.dispersy_undo(globaltimes)
 
     def dispersy_claim_sync_bloom_filter(self, request_cache):
         """
