@@ -507,7 +507,7 @@ UPDATE option SET value = '13' WHERE key = 'database_version';
                 self.executemany(u"DELETE FROM sync WHERE id = ?", deletes)
                 assert len(deletes) == self.changes, [len(deletes), self.changes]
 
-                self.execute(u"UPDATE community SET database_version = 14 WHERE id = ?", (community.database_id,))
+                self.execute(u"UPDATE community SET database_version = 15 WHERE id = ?", (community.database_id,))
                 self.commit()
 
             for handler in progress_handlers:
