@@ -2436,7 +2436,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         requests = []
         now = time()
 
-        random_candidate_iterator = community.dispersy_yield_random_candidates()
+        random_candidate_iterator = community.dispersy_yield_random_candidates
         random_candidate_stack = []
 
         for message in messages:
@@ -2469,7 +2469,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             if __debug__: dprint("received introduction request from ", candidate)
 
             if payload.advice:
-                for introduced in random_candidate_iterator:
+                for introduced in random_candidate_iterator(candidate):
                     if is_valid_candidate(message, candidate, introduced):
                         # found candidate, break
                         break
@@ -3516,7 +3516,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-sequence")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, message, missing_low, missing_high))
             self._forward([request])
-            
+           
             sendRequest = True
            
         return sendRequest

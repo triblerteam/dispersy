@@ -1272,7 +1272,7 @@ class Community(object):
         return self._dispersy.yield_candidates(self)
 
     @documentation(Dispersy.yield_random_candidates)
-    def dispersy_yield_random_candidates(self):
+    def dispersy_yield_random_candidates(self, candidate = None):
         return self._dispersy.yield_random_candidates(self)
 
     @documentation(Dispersy.yield_walk_candidates)
