@@ -2332,7 +2332,10 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
                     # verify that the bloom filter is correct
                     try:
-                        packets = [str(packet) for packet, in self._database.execute(u"SELECT sync.packet FROM sync JOIN meta_message ON meta_message.id = sync.meta_message WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone == 0 AND global_time BETWEEN ? AND ? AND (sync.global_time + ?) % ? = 0",
+                        packets = [str(packet) for packet, in self._database.execute(u"""SELECT sync.packet
+FROM sync
+JOIN meta_message ON meta_message.id = sync.meta_message
+WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND global_time BETWEEN ? AND ? AND (sync.global_time + ?) % ? = 0""",
                                                                                      (community.database_id, time_low, community.global_time if time_high == 0 else time_high, offset, modulo))]
                     except OverflowError:
                         dprint("time_low:  ", time_low, level="error")
@@ -2346,10 +2349,15 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                     assert bloom_filter.bytes == test_bloom_filter.bytes, "problem with the long <-> binary conversion"
                     assert list(bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set before transmission"
                     assert list(test_bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set after transmission"
+
                     # BLOOM_FILTER must have been correctly filled
                     test_bloom_filter.clear()
                     test_bloom_filter.add_keys(packets)
-                    assert bloom_filter.bytes == test_bloom_filter.bytes or bloom_filter.get_bits_checked() > test_bloom_filter.get_bits_checked(), "does not match the given range [%d:%d] packets:%d %s bits-set:%d vs %d" % (time_low, time_high, len(packets), type(community), bloom_filter.get_bits_checked(), test_bloom_filter.get_bits_checked())
+                    if not bloom_filter.bytes == bloom_filter.bytes:
+                        if bloom_filter.get_bits_checked() < test_bloom_filter.get_bits_checked():
+                            dprint(bloom_filter.get_bits_checked(), " bits in: ", bloom_filter.bytes.encode("HEX"), level="error")
+                            dprint(test_bloom_filter.get_bits_checked(), " bits in: ", test_bloom_filter.bytes.encode("HEX"), level="error")
+                            assert False, "does not match the given range [%d:%d] %%%d+%d packets:%d" % (time_low, time_high, modulo, offset, len(packets))
 
         if __debug__:
             if destination.get_destination_address(self._wan_address) != destination.sock_addr:
