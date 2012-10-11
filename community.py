@@ -519,6 +519,9 @@ class Community(object):
         """
         Called after new MESSAGES have been stored in the database.
         """
+        if __debug__:
+            cached = 0
+
         if self._sync_cache:
             cache = self._sync_cache
             for message in messages:
@@ -526,12 +529,19 @@ class Community(object):
                     cache.time_low <= message.distribution.global_time <= cache.time_high and
                     (message.distribution.global_time + cache.offset) % cache.modulo == 0):
 
+                    if __debug__:
+                        cached += 1
+
                     # update cached bloomfilter to avoid duplicates
                     cache.bloom_filter.add(message.packet)
 
                     # if this message was received from the candidate we send the bloomfilter too, increment responses
                     if (cache.candidate and message.candidate and cache.candidate.sock_addr == message.candidate.sock_addr):
                         cache.responses_received += 1
+
+        if __debug__:
+            if cached:
+                dprint(self._cid.encode("HEX"), "] ", cached, " out of ", len(messages), " were part of the cached bloomfilter")
 
     def dispersy_claim_sync_bloom_filter(self, request_cache):
         """
