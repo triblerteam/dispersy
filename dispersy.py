@@ -2341,18 +2341,15 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
                         dprint("the sqlite3 python module can not handle values 2**63 or larger.  limit time_low and time_high to 2**63-1", exception=True, level="error")
                         assert False
 
-                    # BLOOM_FILTER must have been correctly filled
-                    binary = bloom_filter.bytes
-                    bits = bloom_filter.get_bits_checked()
-                    bloom_filter.clear()
-                    bloom_filter.add_keys(packets)
-                    assert binary == bloom_filter.bytes or bits > bloom_filter.get_bits_checked(), "does not match the given range [%d:%d] packets:%d %s bits-set:%d vs %d" % (time_low, time_high, len(packets), type(community), bits, bloom_filter.get_bits_checked())
-
                     # BLOOM_FILTER must be the same after transmission
-                    binary = bloom_filter.bytes
-                    bloom_filter = BloomFilter(binary, bloom_filter.functions, prefix=bloom_filter.prefix)
-                    assert binary == bloom_filter.bytes, "problem with the long <-> binary conversion"
-                    assert list(bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set after transmission"
+                    test_bloom_filter = BloomFilter(bloom_filter.bytes, bloom_filter.functions, prefix=bloom_filter.prefix)
+                    assert bloom_filter.bytes == test_bloom_filter.bytes, "problem with the long <-> binary conversion"
+                    assert list(bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set before transmission"
+                    assert list(test_bloom_filter.not_filter((packet,) for packet in packets)) == [], "does not have all correct bits set after transmission"
+                    # BLOOM_FILTER must have been correctly filled
+                    test_bloom_filter.clear()
+                    test_bloom_filter.add_keys(packets)
+                    assert bloom_filter.bytes == test_bloom_filter.bytes or bloom_filter.get_bits_checked() > test_bloom_filter.get_bits_checked(), "does not match the given range [%d:%d] packets:%d %s bits-set:%d vs %d" % (time_low, time_high, len(packets), type(community), bloom_filter.get_bits_checked(), test_bloom_filter.get_bits_checked())
 
         if __debug__:
             if destination.get_destination_address(self._wan_address) != destination.sock_addr:
