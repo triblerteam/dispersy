@@ -1047,14 +1047,15 @@ class Dispersy(Singleton):
             return False
 
         else:
-            seq = ''
-            if hasattr(message.distribution, 'sequence_number'):
-                seq = "-%d"%message.distribution.sequence_number
-            
             have_packet = str(have_packet)
             if have_packet == message.packet:
                 # exact binary duplicate, do NOT process the message
-                if __debug__: dprint(message.candidate, " received identical message [", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, seq, " undone" if undone else "", "]", level="warning")
+                if __debug__:
+                    if isinstance(message.distribution, FullSyncDistribution) and message.distribution.enable_sequence_number:
+                        seq = " #%d" % message.distribution.sequence_number
+                    else:
+                        seq = ""
+                    dprint(message.candidate, " received identical message [", message.name, " ", message.authentication.member.database_id, "@", message.distribution.global_time, seq, " undone" if undone else "", "]", level="warning")
 
                 if undone:
                     try:
@@ -2365,7 +2366,8 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
         if __debug__:
             if sync:
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", sync[0], ":", sync[1], "] %", sync[2], "+", sync[3])
+                time_low, time_high, modulo, offset, _ = sync
+                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
             else:
                 dprint(community.cid.encode("HEX"), " sending introduction request to ", destination)
         if forward:
@@ -3583,7 +3585,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                         if __debug__: dprint("Bandwidth throttle")
                         break
 
-                if byte_limit <= 0:
+                if byte_limit <= 0 or packet_limit <= 0:
                     break
 
             if __debug__:
@@ -4212,7 +4214,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # this might be a response to a dispersy-missing-proof or dispersy-missing-sequence
         self.handle_missing_messages(messages, MissingProofCache, MissingSequenceCache)
 
-    def sanity_check(self, community, test_identity=True, test_undo_other=True, test_binary=True, test_sequence_number=True, test_last_sync=True):
+    def sanity_check(self, community, test_identity=True, test_undo_other=True, test_binary=False, test_sequence_number=True, test_last_sync=True):
         """
         Check everything we can about a community.
 
@@ -4294,6 +4296,11 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 for undo_packet_id, undo_packet_global_time, undo_packet in select(u"SELECT id, global_time, packet FROM sync WHERE community = ? AND meta_message = ? ORDER BY id LIMIT ? OFFSET ?", (community.database_id, meta_undo_other.database_id)):
                     undo_packet = str(undo_packet)
                     undo_message = self.convert_packet_to_message(undo_packet, community, verify=False)
+
+                    # 10/10/12 Boudewijn: the check_callback is required to obtain the
+                    # message.payload.packet
+                    for _ in undo_message.check_callback([undo_message]):
+                        pass
 
                     # get the message that undo_message refers to
                     try:
@@ -4500,9 +4507,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # interval between each step becomes larger than 5.0 seconds
         optimaldelay = max(0.1, 5.0 / len(walker_communities))
         if __debug__: dprint("there are ", len(walker_communities), " walker enabled communities.  pausing ", optimaldelay, "s (on average) between each step")
-
-        for community in walker_communities:
-            community.__most_recent_sync = 0.0
 
         if __debug__:
             RESETS = 0
