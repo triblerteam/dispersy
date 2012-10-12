@@ -119,19 +119,15 @@ class ScenarioScriptBase(ScriptBase):
     def enable_wait_for_wan_address(self):
         return False
 
-    def find_peer_by_name(self, peername):
-        assert_(isinstance(peername, str))
-        if not peername in self._members:
-            with open('data/peers') as fp:
-                for line in fp:
-                    name, ip, port, public_key, _ = line.split()
-                    if name == peername:
-                        public_key = public_key.decode("HEX")
-                        self._members[name] = (Member(public_key, sync_with_database=True), (ip, int(port)))
-                        break
-                else:
-                    raise ValueError("Node with name '%s' not in nodes db" % peername)
-        return self._members[peername]
+    def get_peer_ip_port(self, peer_id):
+        assert isinstance(peer_id, int), type(peer_id)
+        
+        line_nr = 1
+        for line in open('data/peers'):
+            if line_nr == peer_id:
+                ip, port = line.split()
+                return ip, int(port)
+            line_nr += 1
 
     def set_online(self):
         """ Restore on_socket_endpoint and _send functions of
