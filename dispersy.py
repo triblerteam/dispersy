@@ -3127,18 +3127,18 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # ending with .255
         if binary[3] == "\xff":
             return False
-
-        # range 10.0.0.0 - 10.255.255.255
-        if binary[0] == "\x0a":
-            return False
-
-        # range 172.16.0.0 - 172.31.255.255
-        if binary[0] == "\xac" and "\x10" < binary[1] < "\x1f":
-            return False
-
-        # range 192.168.0.0 - 192.168.255.255
-        if binary[0] == "\xc0" and binary[1] == "\xa8":
-            return False
+#
+#        # range 10.0.0.0 - 10.255.255.255
+#        if binary[0] == "\x0a":
+#            return False
+#
+#        # range 172.16.0.0 - 172.31.255.255
+#        if binary[0] == "\xac" and "\x10" < binary[1] < "\x1f":
+#            return False
+#
+#        # range 192.168.0.0 - 192.168.255.255
+#        if binary[0] == "\xc0" and binary[1] == "\xa8":
+#            return False
 
         if check_my_wan_address and address == self._wan_address:
             return False
