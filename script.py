@@ -258,7 +258,7 @@ class ScenarioScriptBase(ScriptBase):
         except:
             availability_fp = None
 
-        self._stepcount = 1
+        self._stepcount += 1
         prev_total_received = {}
         prev_total_dropped = {}
         prev_total_delayed = {}
