@@ -220,7 +220,7 @@ class ScenarioScriptBase(ScriptBase):
             self._my_name, ip, port = fp.readline().split()
             self._my_address = (ip, int(port))
 
-        if __debug__: log(self._logfile, "read-config-done", my_name = self.my_name, my_address = self._my_address)
+        if __debug__: log(self._logfile, "read-config-done", my_name = self._my_name, my_address = self._my_address)
 
         # create my member
         ec = ec_generate_key(u"low")
