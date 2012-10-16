@@ -972,7 +972,7 @@ class Dispersy(Singleton):
                 if __debug__: dprint("update WAN address ", self._wan_address[0], ":", self._wan_address[1], " -> ", address[0], ":", address[1], force=True)
                 self._wan_address = address
 
-                if not self.valid_address(self._lan_address):
+                if not self.is_valid_address(self._lan_address):
                     if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", self._wan_address[0], ":", self._lan_address[1], force=True)
                     self._lan_address = (self._wan_address[0], self._lan_address[1])
 
