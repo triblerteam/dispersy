@@ -149,7 +149,7 @@ class StandaloneEndpoint(Endpoint):
 
         for candidate in candidates:
             sock_addr = candidate.get_destination_address(wan_address)
-            assert self._dispersy.is_valid_remote_address(sock_addr)
+            assert self._dispersy.is_valid_address(sock_addr), sock_addr
 
             for data in packets:
                 if __debug__:
@@ -327,7 +327,7 @@ class TunnelEndpoint(Endpoint):
         try:
             for candidate in candidates:
                 sock_addr = candidate.get_destination_address(wan_address)
-                assert self._dispersy.is_valid_remote_address(sock_addr)
+                assert self._dispersy.is_valid_address(sock_addr), sock_addr
 
                 for data in packets:
                     if __debug__:

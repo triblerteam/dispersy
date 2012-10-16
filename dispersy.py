@@ -393,11 +393,11 @@ class Dispersy(Singleton):
         if __debug__: dprint("update WAN address ", self._wan_address[0], ":", self._wan_address[1], " -> ", self._lan_address[0], ":", self._lan_address[1], force=True)
         self._wan_address = self._lan_address
 
-        if not self._is_valid_lan_address(self._lan_address, check_my_lan_address=False):
+        if not self.is_valid_address(self._lan_address):
             if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", host, ":", self._lan_address[1], force=True)
             self._lan_address = (host, self._lan_address[1])
 
-            if not self._is_valid_lan_address(self._lan_address, check_my_lan_address=False):
+            if not self.is_valid_address(self._lan_address):
                 if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", self._wan_address[0], ":", self._lan_address[1], force=True)
                 self._lan_address = (self._wan_address[0], self._lan_address[1])
 
@@ -938,7 +938,7 @@ class Dispersy(Singleton):
             if __debug__: dprint("ignoring vote from candidate on the same LAN")
             return
 
-        if not self._is_valid_wan_address(address, check_my_wan_address=False):
+        if not self.is_valid_address(address):
             if __debug__: dprint("got invalid external vote from ", voter, " received ", address[0], ":", address[1])
             return
 
@@ -972,7 +972,7 @@ class Dispersy(Singleton):
                 if __debug__: dprint("update WAN address ", self._wan_address[0], ":", self._wan_address[1], " -> ", address[0], ":", address[1], force=True)
                 self._wan_address = address
 
-                if not self._is_valid_lan_address(self._lan_address, check_my_lan_address=False):
+                if not self.valid_address(self._lan_address):
                     if __debug__: dprint("update LAN address ", self._lan_address[0], ":", self._lan_address[1], " -> ", self._wan_address[0], ":", self._lan_address[1], force=True)
                     self._lan_address = (self._wan_address[0], self._lan_address[1])
 
@@ -1448,7 +1448,9 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         if candidate is None:
             # find matching candidate with the same host but a different port (symmetric NAT)
             for candidate in self._candidates.itervalues():
-                if candidate.sock_addr[0] == sock_addr[0] and candidate.lan_address in (("0.0.0.0", 0), lan_address):
+                if (candidate.connection_type == "symmetric-NAT" and
+                    candidate.sock_addr[0] == sock_addr[0] and
+                    candidate.lan_address in (("0.0.0.0", 0), lan_address)):
                     if __debug__: dprint("using existing candidate ", candidate, " at different port ", sock_addr[1], " (replace)" if replace else " (no replace)")
 
                     if replace:
@@ -2214,16 +2216,16 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         We received a message from SOCK_ADDR claiming to have LAN_ADDRESS and WAN_ADDRESS, returns
         the estimated LAN and WAN address for this node.
 
-        The returned LAN address is either ("0.0.0.0", 0) or passes _is_valid_lan_address.
-        Similarly, the returned WAN address is either ("0.0.0.0", 0) or passes
-        _is_valid_wan_address.
+        The returned LAN address is either ("0.0.0.0", 0) or it is not our LAN address while passing
+        is_valid_address.  Similarly, the returned WAN address is either ("0.0.0.0", 0) or it is not
+        our WAN address while passing is_valid_address.
         """
-        if not self._is_valid_lan_address(lan_address):
+        if self._lan_address == lan_address or not self.is_valid_address(lan_address):
             if __debug__:
                 if lan_address != sock_addr:
                     dprint("estimate a different LAN address ", lan_address[0], ":", lan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
             lan_address = sock_addr
-        if not self._is_valid_wan_address(wan_address):
+        if self._wan_address == wan_address or not self.is_valid_address(wan_address):
             if __debug__:
                 if wan_address != sock_addr:
                     dprint("estimate a different WAN address ", wan_address[0], ":", wan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
@@ -2234,29 +2236,28 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
             if __debug__:
                 if lan_address != sock_addr:
                     dprint("estimate a different LAN address ", lan_address[0], ":", lan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
-            assert self._is_valid_lan_address(sock_addr), [self.lan_address, sock_addr]
-            assert self._is_valid_wan_address(wan_address), [self.wan_address, wan_address]
-            return sock_addr, wan_address
+            lan_address = sock_addr
 
-        elif self._is_valid_wan_address(sock_addr):
+        elif self.is_valid_address(sock_addr):
             # we have a different WAN address and the sock address is WAN, we are probably behind a different NAT
             if __debug__:
                 if wan_address != sock_addr:
                     dprint("estimate a different WAN address ", wan_address[0], ":", wan_address[1], " -> ", sock_addr[0], ":", sock_addr[1])
-            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
-            assert self._is_valid_wan_address(sock_addr), [self.wan_address, sock_addr]
-            return lan_address, sock_addr
+            wan_address = sock_addr
 
-        elif self._is_valid_wan_address(wan_address):
+        elif self.is_valid_address(wan_address):
             # we have a different WAN address and the sock address is not WAN, we are probably on the same computer
-            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
-            assert self._is_valid_wan_address(wan_address), [self.wan_address, wan_address]
-            return lan_address, wan_address
+            pass
 
         else:
             # we are unable to determine the WAN address, we are probably behind the same NAT
-            assert self._is_valid_lan_address(lan_address), [self.lan_address, lan_address]
-            return lan_address, ("0.0.0.0", 0)
+            wan_address = ("0.0.0.0", 0)
+
+        assert self._lan_address != sock_addr, [self.lan_address, lan_address]
+        assert lan_address == ("0.0.0.0", 0) or self.is_valid_address(sock_addr), [self.lan_address, lan_address]
+        assert self._wan_address != wan_address, [self._wan_address, wan_address]
+        assert wan_address == ("0.0.0.0", 0) or self.is_valid_address(wan_address), [self._wan_address, wan_address]
+        return lan_address, wan_address
 
     def take_step(self, community, allow_sync):
         if community.cid in self._communities:
@@ -2401,8 +2402,8 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
     def on_introduction_request(self, messages):
         def is_valid_candidate(message, candidate, introduced):
             assert isinstance(introduced, WalkCandidate)
-            assert self._is_valid_lan_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
-            assert self._is_valid_wan_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
+            assert self.is_valid_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
+            assert self.is_valid_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
 
             # # we can only use WalkCandidates
             # if not isinstance(candidate, WalkCandidate):
@@ -2568,8 +2569,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
             # check introduced LAN address, if given
             if not message.payload.lan_introduction_address == ("0.0.0.0", 0):
-                if not self._is_valid_lan_address(message.payload.lan_introduction_address):
-                    yield DropMessage(message, "invalid LAN introduction address [_is_valid_lan_address] %s -- %s" % (str(self._lan_address), str(message.payload.lan_introduction_address)))
+                if not self.is_valid_address(message.payload.lan_introduction_address):
+                    yield DropMessage(message, "invalid LAN introduction address [is_valid_address]")
                     continue
 
                 if message.payload.lan_introduction_address == message.candidate.sock_addr:
@@ -2582,8 +2583,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
             # check introduced WAN address, if given
             if not message.payload.wan_introduction_address == ("0.0.0.0", 0):
-                if not self._is_valid_wan_address(message.payload.wan_introduction_address):
-                    yield DropMessage(message, "invalid WAN introduction address [_is_valid_wan_address]")
+                if not self.is_valid_address(message.payload.wan_introduction_address):
+                    yield DropMessage(message, "invalid WAN introduction address [is_valid_address]")
                     continue
 
                 if message.payload.wan_introduction_address == message.candidate.sock_addr:
@@ -2633,8 +2634,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             wan_introduction_address = payload.wan_introduction_address
             if not (lan_introduction_address == ("0.0.0.0", 0) or wan_introduction_address == ("0.0.0.0", 0) or
                     lan_introduction_address in self._bootstrap_candidates or wan_introduction_address in self._bootstrap_candidates):
-                assert self._is_valid_lan_address(lan_introduction_address), lan_introduction_address
-                assert self._is_valid_wan_address(wan_introduction_address), wan_introduction_address
+                assert self.is_valid_address(lan_introduction_address), lan_introduction_address
+                assert self.is_valid_address(wan_introduction_address), wan_introduction_address
 
                 # get or create the introduced candidate
                 sock_introduction_addr = lan_introduction_address if wan_introduction_address[0] == self._wan_address[0] else wan_introduction_address
@@ -2658,16 +2659,24 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 yield DropMessage(message, "invalid LAN walker address [puncture herself]")
                 continue
 
-            if not self._is_valid_lan_address(message.payload.lan_walker_address):
-                yield DropMessage(message, "invalid LAN walker address [_is_valid_lan_address]")
+            if not self.is_valid_address(message.payload.lan_walker_address):
+                yield DropMessage(message, "invalid LAN walker address [is_valid_address]")
+                continue
+
+            if message.payload.lan_walker_address == self._lan_address:
+                yield DropMessage(message, "invalid LAN walker address [puncture myself]")
                 continue
 
             if message.payload.wan_walker_address == message.candidate.sock_addr:
                 yield DropMessage(message, "invalid WAN walker address [puncture herself]")
                 continue
 
-            if not self._is_valid_wan_address(message.payload.wan_walker_address):
-                yield DropMessage(message, "invalid WAN walker address [_is_valid_wan_address]")
+            if not self.is_valid_address(message.payload.wan_walker_address):
+                yield DropMessage(message, "invalid WAN walker address [is_valid_address]")
+                continue
+
+            if message.payload.wan_walker_address == self._wan_address:
+                yield DropMessage(message, "invalid WAN walker address [puncture myself]")
                 continue
 
             yield message
@@ -2679,8 +2688,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         for message in messages:
             lan_walker_address = message.payload.lan_walker_address
             wan_walker_address = message.payload.wan_walker_address
-            assert self._is_valid_lan_address(lan_walker_address), lan_walker_address
-            assert self._is_valid_wan_address(wan_walker_address), wan_walker_address
+            assert self.is_valid_address(lan_walker_address), lan_walker_address
+            assert self.is_valid_address(wan_walker_address), wan_walker_address
 
             # we are asked to send a message to a -possibly- unknown peer get the actual candidate
             # or create a dummy candidate
@@ -2722,8 +2731,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             lan_address, wan_address = self._estimate_lan_and_wan_addresses(sock_addr, message.payload.source_lan_address, message.payload.source_wan_address)
 
             if not (lan_address == ("0.0.0.0", 0) or wan_address == ("0.0.0.0", 0)):
-                assert self._is_valid_lan_address(lan_address), lan_address
-                assert self._is_valid_wan_address(wan_address), wan_address
+                assert self.is_valid_address(lan_address), lan_address
+                assert self.is_valid_address(wan_address), wan_address
 
                 # get or create the introduced candidate
                 candidate = self.get_candidate(sock_addr, replace=True, lan_address=lan_address)
@@ -2882,7 +2891,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             raise NotImplementedError(meta.destination)
 
         return False
-
     def declare_malicious_member(self, member, packets):
         """
         Provide one or more signed messages that prove that the creator is malicious.
@@ -3045,10 +3053,18 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                                                                               (message.community.database_id, payload.member.database_id, payload.message.database_id, payload.count)))]
             self._endpoint.send([message.candidate], packets)
 
-    def _is_valid_lan_address(self, address, check_my_lan_address=True):
+    def is_valid_address(self, address):
         """
-        TODO we should rename _is_valid_lan_address to _is_valid_address as the way it is used now
-        things will fail if it only accepted LAN domain addresses (10.xxx.yyy.zzz, etc.)
+        Returns True when ADDRESS is valid.
+
+        ADDRESS must be supplied as a (HOST string, PORT integer) tuple.
+
+        An address is valid when it meets the following criteria:
+        - HOST must be non empty
+        - HOST must be non '0.0.0.0'
+        - PORT must be > 0
+        - HOST must be 'A.B.C.D' where A, B, and C are numbers higher or equal to 0 and lower or
+          equal to 255.  And where D is higher than 0 and lower than 255
         """
         assert isinstance(address, tuple), type(address)
         assert len(address) == 2, len(address)
@@ -3077,79 +3093,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if binary[3] == "\xff":
             return False
 
-        # a LAN address may also be a WAN address as some nodes will be connected to the Internet
-        # directly
-        # # range 10.0.0.0 - 10.255.255.255
-        # if binary[0] == "\x0a":
-        #     pass
-        # # range 172.16.0.0 - 172.31.255.255
-        # elif binary[0] == "\xac" and "\x10" < binary[1] < "\x1f":
-        #     pass
-        # # range 192.168.0.0 - 192.168.255.255
-        # elif binary[0] == "\xc0" and binary[1] == "\xa8":
-        #     pass
-        # else:
-        #     # not in a valid LAN range
-        #     return False
-
-        if check_my_lan_address and address == self._lan_address:
-            return False
-
-        if address == ("127.0.0.1", self._lan_address[1]):
-            return False
-
         return True
-
-    def _is_valid_wan_address(self, address, check_my_wan_address=True):
-        assert isinstance(address, tuple), type(address)
-        assert len(address) == 2, len(address)
-        assert isinstance(address[0], str), type(address[0])
-        assert isinstance(address[1], int), type(address[1])
-
-        if address[0] == "":
-            return False
-
-        if address[0] == "0.0.0.0":
-            return False
-
-        if address[1] <= 0:
-            return False
-
-        try:
-            binary = inet_aton(address[0])
-        except socket_error:
-            return False
-
-        # # ending with .0
-        # if binary[3] == "\x00":
-        #     return False
-
-        # ending with .255
-        if binary[3] == "\xff":
-            return False
-#
-#        # range 10.0.0.0 - 10.255.255.255
-#        if binary[0] == "\x0a":
-#            return False
-#
-#        # range 172.16.0.0 - 172.31.255.255
-#        if binary[0] == "\xac" and "\x10" < binary[1] < "\x1f":
-#            return False
-#
-#        # range 192.168.0.0 - 192.168.255.255
-#        if binary[0] == "\xc0" and binary[1] == "\xa8":
-#            return False
-
-        if check_my_wan_address and address == self._wan_address:
-            return False
-
-        if address == ("127.0.0.1", self._wan_address[1]):
-            return False
-
-        return True
-
-    def is_valid_remote_address(self, address):
-        return self._is_valid_lan_address(address) or self._is_valid_wan_address(address)
 
     def create_identity(self, community, sign_with_master=False, store=True, update=True):
         """
