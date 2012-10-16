@@ -114,6 +114,8 @@ class ScenarioScriptBase(ScriptBase):
         self._stepcount = 0
         self._starting_timestamp = float(kargs.get('starting_timestamp', time()))
         self._logfile = logfile
+        self._my_name = None
+        self._my_address = None
 
     @property
     def enable_wait_for_wan_address(self):
@@ -215,10 +217,10 @@ class ScenarioScriptBase(ScriptBase):
         # name, ip, port, public and private key
         #
         with open('data/peer.conf') as fp:
-            my_name, ip, port = fp.readline().split()
-            my_address = (ip, int(port))
+            self._my_name, ip, port = fp.readline().split()
+            self._my_address = (ip, int(port))
 
-        if __debug__: log(self._logfile, "read-config-done", my_name = my_name, my_address = my_address)
+        if __debug__: log(self._logfile, "read-config-done", my_name = self.my_name, my_address = self._my_address)
 
         # create my member
         ec = ec_generate_key(u"low")
