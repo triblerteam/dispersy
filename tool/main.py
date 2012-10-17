@@ -9,6 +9,7 @@ from ..callback import Callback
 from ..dispersy import Dispersy
 from ..dprint import dprint
 from ..endpoint import StandaloneEndpoint
+from threading import currentThread
 
 def watchdog(dispersy):
     try:
@@ -65,6 +66,7 @@ def main(setup=None):
         exit(1)
 
     # setup
+    currentThread().setName('Dispersy')
     callback = Callback()
     dispersy = Dispersy.get_instance(callback, unicode(opt.statedir))
     # if opt.swiftproc:
