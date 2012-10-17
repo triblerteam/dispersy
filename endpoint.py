@@ -2,18 +2,13 @@
 from __future__ import with_statement
 
 from itertools import product
+from select import select
 from time import time
 from traceback import print_exc
 import errno
 import socket
 import sys
 import threading
-
-try:
-    from select import poll, POLLIN
-except ImportError:
-    #Niels 04-10-2012: poll does not exist on windows...
-    from selectpoll import poll, POLLIN
 
 from .candidate import Candidate
 from .revision import update_revision_information
@@ -105,34 +100,32 @@ class StandaloneEndpoint(Endpoint):
         recvfrom = self._socket.recvfrom
         register = self._dispersy.callback.register
         dispersythread_data_came_in = self.dispersythread_data_came_in
-        pl = poll()
-        pl.register(self._socket, POLLIN)
-        do_poll = pl.poll
+        listen_list = [self._socket.fileno()]
 
         while self._running:
-            for _, event in do_poll(1.0):
-                if event & POLLIN:
-                    packets = []
-                    try:
-                        while True:
-                            (data, sock_addr) = recvfrom(65535)
-                            packets.append((sock_addr, data))
-                    except socket.error:
-                        pass
+            ready_list, _, _ = select(listen_list, [], [], 1.0)
+            if ready_list:
+                packets = []
+                try:
+                    while True:
+                        (data, sock_addr) = recvfrom(65535)
+                        packets.append((sock_addr, data))
+                except socket.error:
+                    pass
 
-                    finally:
-                        if packets:
-                            if __debug__:
-                                if DEBUG:
-                                    for sock_addr, data in packets:
-                                        try:
-                                            name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
-                                        except:
-                                            name = "???"
-                                        print >> sys.stderr, "endpoint: %.1f %30s <- %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
+                finally:
+                    if packets:
+                        if __debug__:
+                            if DEBUG:
+                                for sock_addr, data in packets:
+                                    try:
+                                        name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
+                                    except:
+                                        name = "???"
+                                    print >> sys.stderr, "endpoint: %.1f %30s <- %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
 
-                            self._total_down += sum(len(data) for _, data in packets)
-                            register(dispersythread_data_came_in, (packets,))
+                        self._total_down += sum(len(data) for _, data in packets)
+                        register(dispersythread_data_came_in, (packets,))
 
     def dispersythread_data_came_in(self, packets):
         self._dispersy.on_incoming_packets([(Candidate(sock_addr, False), data) for sock_addr, data in packets])
