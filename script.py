@@ -333,7 +333,7 @@ class ScenarioScriptBase(ScriptBase):
                         didChange = True
 
             if didChange:
-                log("dispersy.log", "statistics-delayed-messages", **total_dropped)
+                log("dispersy.log", "statistics-delayed-messages", **total_delayed)
                 prev_total_delayed = total_delayed
 
 #            def callback_cmp(a, b):
