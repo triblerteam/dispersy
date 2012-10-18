@@ -961,6 +961,8 @@ class Dispersy(Singleton):
             if len(votes) > 1:
                 if __debug__: dprint("not updating WAN address, suspect symmetric NAT")
                 self._connection_type = u"symmetric-NAT"
+                # hack: we want to force the DAS4 not to use sym-nat
+                self._connection_type = u"unknown"
 
             else:
                 # it is possible that, for some time after the WAN address changes, we will believe
