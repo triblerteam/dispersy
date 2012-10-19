@@ -124,7 +124,7 @@ class ScenarioScript(ScriptBase):
                          hex_cid=community.hex_cid,
                          classification=community.classification,
                          global_time=community.global_time,
-                         candidates=[dict(zip(["lan_address", "wan_address", "global_time"], tup)) for tup in community.candidates]
+                         candidates=[dict(zip(["lan_address", "wan_address", "global_time"], tup)) for tup in community.candidates])
 
             # wait
             yield self.enable_statistics
