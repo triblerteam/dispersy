@@ -124,6 +124,8 @@ class ScenarioScript(ScriptBase):
                          hex_cid=community.hex_cid,
                          classification=community.classification,
                          global_time=community.global_time,
+                         sync_bloom_new=community.sync_bloom_new,
+                         sync_bloom_reuse=community.sync_bloom_reuse,
                          candidates=[dict(zip(["lan_address", "wan_address", "global_time"], tup)) for tup in community.candidates])
 
             # wait
@@ -430,6 +432,7 @@ class ScenarioParser2(Parser):
         self.cur.execute(u"CREATE TABLE bandwidth (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER, drop_count INTEGER, delay_count INTEGER, delay_send INTEGER, delay_success INTEGER, delay_timeout INTEGER, success_count INTEGER, received_count INTEGER)")
         self.cur.execute(u"CREATE TABLE bandwidth_rate (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER)")
         self.cur.execute(u"CREATE TABLE churn (peer INTEGER, online FLOAT, offline FLOAT)")
+        self.cur.execute(u"CREATE TABLE community (timestamp FLOAT, peer INTEGER, hex_cid TEXT, classification TEXT, global_time INTEGER, sync_bloom_new INTEGER, sync_bloom_reuse INTEGER, candidate_count INTEGER)")
 
         self.mid_cache = {}
         self.hostname = ""
@@ -454,6 +457,7 @@ class ScenarioParser2(Parser):
         self.mapto(self.scenario_cpu, "scenario-cpu")
         self.mapto(self.scenario_memory, "scenario-memory")
         self.mapto(self.scenario_bandwidth, "scenario-bandwidth")
+        self.mapto(self.scenario_community, "scenario-community")
 
     def start_parser(self, filename):
         """Called once before starting to parse FILENAME"""
@@ -517,6 +521,10 @@ class ScenarioParser2(Parser):
         self.bandwidth_timestamp = timestamp
         self.bandwidth_up = up
         self.bandwidth_down = down
+
+    def scenario_community(self, timestamp, _, hex_cid, classification, global_time, sync_bloom_new, sync_bloom_reuse, candidates):
+        self.cur.execute(u"INSERT INTO community (timestamp, peer, hex_cid, classification, global_time, sync_bloom_new, sync_bloom_reuse, candidate_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                         (timestamp, self.peer_id, hex_cid, classification, global_time, sync_bloom_new, sync_bloom_reuse, len(candidates)))
 
     def parse_directory(self, *args, **kargs):
         try:
