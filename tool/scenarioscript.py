@@ -427,7 +427,8 @@ class ScenarioParser2(Parser):
         self.cur = database.cursor()
         self.cur.execute(u"CREATE TABLE cpu (timestamp FLOAT, peer INTEGER, percentage FLOAT)")
         self.cur.execute(u"CREATE TABLE memory (timestamp FLOAT, peer INTEGER, rss INTEGER, vms INTEGER)")
-        self.cur.execute(u"CREATE TABLE bandwidth (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER, loss INTEGER, success INTEGER, up_rate INTEGER, down_rate INTEGER)")
+        self.cur.execute(u"CREATE TABLE bandwidth (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER, drop_count INTEGER, delay_count INTEGER, delay_send INTEGER, delay_success INTEGER, delay_timeout INTEGER, success_count INTEGER, received_count INTEGER)")
+        self.cur.execute(u"CREATE TABLE bandwidth_rate (timestamp FLOAT, peer INTEGER, up INTEGER, down INTEGER)")
         self.cur.execute(u"CREATE TABLE churn (peer INTEGER, online FLOAT, offline FLOAT)")
 
         self.mid_cache = {}
@@ -506,10 +507,13 @@ class ScenarioParser2(Parser):
     def scenario_memory(self, timestamp, _, vms, rss):
         self.cur.execute(u"INSERT INTO memory (timestamp, peer, rss, vms) VALUES (?, ?, ?, ?)", (timestamp, self.peer_id, rss, vms))
 
-    def scenario_bandwidth(self, timestamp, _, down, up, drop, success):
+    def scenario_bandwidth(self, timestamp, _, up, down, drop_count, delay_count, delay_send, delay_success, delay_timeout, success_count, received_count):
+        self.cur.execute(u"INSERT INTO bandwidth (timestamp, peer, up, down, drop_count, delay_count, delay_send, delay_success, delay_timeout, success_count, received_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (timestamp, self.peer_id, up, down, drop_count, delay_count, delay_send, delay_success, delay_timeout, success_count, received_count))
+
         delta = timestamp - self.bandwidth_timestamp
-        self.cur.execute(u"INSERT INTO bandwidth (timestamp, peer, up, down, loss, success, up_rate, down_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                         (timestamp, self.peer_id, up, down, drop, success, (up-self.bandwidth_up)/delta, (down-self.bandwidth_down)/delta))
+        self.cur.execute(u"INSERT INTO bandwidth_rate (timestamp, peer, up, down) VALUES (?, ?, ?, ?)",
+                         (timestamp, self.peer_id, (up-self.bandwidth_up)/delta, (down-self.bandwidth_down)/delta))
         self.bandwidth_timestamp = timestamp
         self.bandwidth_up = up
         self.bandwidth_down = down
