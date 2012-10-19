@@ -29,7 +29,7 @@ class DispersyStatistics(Statistics):
         self.drop_count = 0
         self.delay_count = 0
         self.delay_send = 0
-        self.delay_succes = 0
+        self.delay_success = 0
         self.delay_timeout = 0
         self.success_count = 0
         self.received_count = 0
@@ -66,7 +66,7 @@ class DispersyStatistics(Statistics):
         self.drop_count = 0
         self.delay_count = 0
         self.delay_send = 0
-        self.delay_succes = 0
+        self.delay_success = 0
         self.delay_timeout = 0
         self.received_count = 0
 
