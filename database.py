@@ -126,6 +126,12 @@ class Database(Singleton):
         """
         return self._file_path
 
+    def close(self, commit=True):
+        if commit:
+            self.commit()
+        self._cursor.close()
+        self._connection.close()
+
     def __enter__(self):
         """
         Enters a no-commit state.  The commit will be performed by __exit__.
