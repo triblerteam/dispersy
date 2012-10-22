@@ -114,8 +114,11 @@ class ScenarioScriptBase(ScriptBase):
         self._stepcount = 0
         self._starting_timestamp = float(kargs.get('starting_timestamp', time()))
         self._logfile = logfile
+        
         self._my_name = None
         self._my_address = None
+        
+        self._nr_peers = self.__get_nr_peers()
 
     @property
     def enable_wait_for_wan_address(self):
@@ -130,6 +133,13 @@ class ScenarioScriptBase(ScriptBase):
                 ip, port = line.split()
                 return ip, int(port)
             line_nr += 1
+            
+    def __get_nr_peers(self):
+        line_nr = 0
+        for line in open('data/peers'):
+            line_nr +=1
+            
+        return line_nr
 
     def set_online(self):
         """ Restore on_socket_endpoint and _send functions of
