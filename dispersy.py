@@ -1713,11 +1713,17 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             self._batch_cache.pop(meta)
 
         if not self._communities.get(meta.community.cid, None) == meta.community:
-            if __debug__: dprint("dropped ", len(batch), "x ", meta.name, " packets (community no longer loaded)", level="warning")
+            if __debug__: 
+                dprint("dropped ", len(batch), "x ", meta.name, " packets (community no longer loaded)", level="warning")
+                self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: community no longer loaded", len(batch))
+            self._statistics.drop_count += len(batch)
             return 0
 
         if meta.batch.enabled and timestamp > 0.0 and meta.batch.max_age + timestamp <= time():
-            if __debug__: dprint("dropped ", len(batch), "x ", meta.name, " packets (can not process these messages on time)", level="warning")
+            if __debug__:
+                dprint("dropped ", len(batch), "x ", meta.name, " packets (can not process these messages on time)", level="warning")
+                self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: can not process these messages on time", len(batch))
+            self._statistics.drop_count += len(batch)
             return 0
 
         return self._on_batch_cache(meta, batch)
