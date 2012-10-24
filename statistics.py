@@ -8,10 +8,11 @@ update_revision_information("$HeadURL: https://svn.tribler.org/dispersy/branches
 class Statistics():
     @staticmethod
     def dict_inc(dictionary, key, value=1L):
-        try:
-            dictionary[key] += value
-        except KeyError:
-            dictionary[key] = value
+        if dictionary != None:
+            try:
+                dictionary[key] += value
+            except KeyError:
+                dictionary[key] = value
 
     def update(self):
         raise NotImplementedError()
@@ -39,16 +40,34 @@ class DispersyStatistics(Statistics):
         self.walk_attempt = 0
         self.walk_reset = 0
         self.walk_success = 0
+        self.walk_bootstrap_attempt = 0
+        self.walk_bootstrap_success = 0
         self.wan_address = None
         self.update()
+        
+        self.enable_debug_statistics(__debug__)
 
-        if __debug__:
-            self.drop = {}
-            self.delay = {}
-            self.success = {}
-            self.outgoing = {}
-            self.walk_fail = {}
-            self.attachment = {}
+    def enable_debug_statistics(self, enable):
+        if self.are_debug_statistics_enabled() != enable or not hasattr(self, 'drop'):
+            if enable:
+                self.drop = {}
+                self.delay = {}
+                self.success = {}
+                self.outgoing = {}
+                self.walk_fail = {}
+                self.attachment = {}
+                self.database = {}
+            else:
+                self.drop = None
+                self.delay = None
+                self.success = None
+                self.outgoing = None
+                self.walk_fail = None
+                self.attachment = None
+                self.database = None
+                
+    def are_debug_statistics_enabled(self):
+        return getattr(self, 'drop', None) != None
 
     def update(self, database=False):
         self.communities = [community.statistics for community in self._dispersy.get_communities()]
@@ -77,6 +96,8 @@ class DispersyStatistics(Statistics):
         self.walk_attempt = 0
         self.walk_reset = 0
         self.walk_success = 0
+        self.walk_bootstrap_attempt = 0
+        self.walk_bootstrap_success = 0
 
         if __debug__:
             self.drop = {}

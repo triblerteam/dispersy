@@ -694,10 +694,10 @@ class Dispersy(Singleton):
             # restart walker scheduler
             self._callback.replace_register(CANDIDATE_WALKER_CALLBACK_ID, self._candidate_walker)
 
+        # count the number of times that a community was attached
+        self._statistics.dict_inc(self._statistics.attachment, community.cid)
+        
         if __debug__:
-            # count the number of times that a community was attached
-            self._statistics.dict_inc(self._statistics.attachment, community.cid)
-
             # schedule the sanity check... it also checks that the dispersy-identity is available and
             # when this is a create or join this message is created only after the attach_community
             if "--sanity-check" in sys.argv:
@@ -1063,8 +1063,7 @@ class Dispersy(Singleton):
                     except StopIteration:
                         pass
                     else:
-                        if __debug__:
-                            self._statistics.dict_inc(self._statistics.outgoing, u"-duplicate-undo-")
+                        self._statistics.dict_inc(self._statistics.outgoing, u"-duplicate-undo-")
                         self._endpoint.send([message.candidate], [str(proof)])
 
             else:
@@ -1146,7 +1145,7 @@ class Dispersy(Singleton):
                 if seq >= message.distribution.sequence_number:
                     # we already have this message (drop)
                     # TODO: something similar to _is_duplicate_sync_message can occur...
-                    yield DropMessage(message, "duplicate message by sequence_number (we have %d, message has %d)"%(seq, message.distribution.sequence_number))
+                    yield DropMessage(message, "duplicate message by sequence_number")
                     continue
 
                 if seq + 1 != message.distribution.sequence_number:
@@ -1262,8 +1261,7 @@ class Dispersy(Singleton):
                             # from this batch.
                             pass
                         else:
-                            if __debug__:
-                                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
+                            self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
                             self._endpoint.send([message.candidate], [str(packet)])
 
                     return DropMessage(message, "old message by member^global_time")
@@ -1360,8 +1358,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                         # apparently the sender does not have this message yet
                         if message.distribution.history_size == 1:
                             packet_id, have_packet = tim.values()[0]
-                            if __debug__:
-                                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
+                            self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-")
                             self._endpoint.send([message.candidate], [have_packet])
 
                         if __debug__: dprint("drop ", message.name, " ", ",".join(map(str, members)), "@", message.distribution.global_time, " (older than ", min(tim), ")")
@@ -1715,14 +1712,14 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         if not self._communities.get(meta.community.cid, None) == meta.community:
             if __debug__: 
                 dprint("dropped ", len(batch), "x ", meta.name, " packets (community no longer loaded)", level="warning")
-                self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: community no longer loaded", len(batch))
+            self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: community no longer loaded", len(batch))
             self._statistics.drop_count += len(batch)
             return 0
 
         if meta.batch.enabled and timestamp > 0.0 and meta.batch.max_age + timestamp <= time():
             if __debug__:
                 dprint("dropped ", len(batch), "x ", meta.name, " packets (can not process these messages on time)", level="warning")
-                self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: can not process these messages on time", len(batch))
+            self._statistics.dict_inc(self._statistics.drop, "on_batch_cache_timeout: can not process these messages on time", len(batch))
             self._statistics.drop_count += len(batch)
             return 0
 
@@ -1819,16 +1816,17 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             if isinstance(message, DelayMessage):
                 if __debug__:
                     dprint(message.delayed.candidate, " delay ", message.delayed, " (", message, ")")
-                    self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
+                    
                 if message.create_request():
                     self._statistics.delay_send += 1
+                self._statistics.dict_inc(self._statistics.delay, "om_message_batch:%s" % message.delayed)
                 self._statistics.delay_count += 1
                 return False
 
             elif isinstance(message, DropMessage):
                 if __debug__:
                     dprint(message.dropped.candidate, " drop: ", message.dropped.name, " (", message, ")", level="warning")
-                    self._statistics.dict_inc(self._statistics.drop, "on_message_batch:%s" % message)
+                self._statistics.dict_inc(self._statistics.drop, "on_message_batch:%s" % message)
                 self._statistics.drop_count += 1
                 return False
 
@@ -1874,7 +1872,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         # store to disk and update locally
         if __debug__:
             dprint("in... ", len(messages), " ", meta.name, " messages from ", ", ".join(str(candidate) for candidate in set(message.candidate for message in messages)))
-            self._statistics.dict_inc(self._statistics.success, meta.name, len(messages))
+        self._statistics.dict_inc(self._statistics.success, meta.name, len(messages))
         self.store_update_forward(messages, True, True, False)
         self._statistics.success_count += len(messages)
 
@@ -1922,7 +1920,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except KeyError:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown community) from ", candidate, level="warning")
-                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown community")
+                self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown community")
                 self._statistics.drop_count += 1
                 continue
 
@@ -1932,7 +1930,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except KeyError:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (received packet for unknown conversion) from ", candidate, level="warning")
-                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown conversion")
+                self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:unknown conversion")
                 self._statistics.drop_count += 1
                 continue
 
@@ -1943,7 +1941,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except DropPacket, exception:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception,") from ", candidate, level="warning")
-                    self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:decode_meta_message:%s" % exception)
+                self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:decode_meta_message:%s" % exception)
                 self._statistics.drop_count += 1
 
     def _convert_batch_into_messages(self, batch):
@@ -1966,16 +1964,16 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
             except DropPacket, exception:
                 if __debug__:
                     dprint("drop a ", len(packet), " byte packet (", exception, ") from ", candidate, level="warning")
-                    self._statistics.dict_inc(self._statistics.drop, "_convert_batch_into_messages:%s" % exception)
+                self._statistics.dict_inc(self._statistics.drop, "_convert_batch_into_messages:%s" % exception)
                 self._statistics.drop_count += 1
 
             except DelayPacket, delay:
                 if __debug__:
                     dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)
-                    self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
                 
                 if delay.create_request(candidate, packet):
                     self._statistics.delay_send += 1
+                self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
                 self._statistics.delay_count += 1
 
     def _store(self, messages):
@@ -2301,6 +2299,9 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
 
         self._statistics.walk_attempt += 1
+        if isinstance(destination, BootstrapCandidate):
+            self._statistics.walk_bootstrap_attempt += 1
+        
         cache = IntroductionRequestCache(community, destination)
         destination.walk(community, time(), cache.timeout_delay)
 
@@ -2564,7 +2565,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if packets:
                     if __debug__:
                         dprint("syncing ", len(packets), " packets (", sum(len(packet) for packet in packets), " bytes) over [", time_low, ":", time_high, "] selecting (%", message.payload.modulo, "+", message.payload.offset, ") to " , message.candidate)
-                        self._statistics.dict_inc(self._statistics.outgoing, u"-sync-", len(packets))
+                    self._statistics.dict_inc(self._statistics.outgoing, u"-sync-", len(packets))
                     self._endpoint.send([message.candidate], packets)
 
     def check_introduction_response(self, messages):
@@ -2631,6 +2632,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
             # increment statistics only the first time
             self._statistics.walk_success += 1
+            if isinstance(candidate, BootstrapCandidate):
+                self._statistics.walk_bootstrap_success += 1
 
             # get cache object linked to this request and stop timeout from occurring
             cache = self._request_cache.pop(payload.identifier, IntroductionRequestCache)
@@ -2868,16 +2871,14 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if isinstance(meta.destination, CommunityDestination):
             # CommunityDestination.node_count is allowed to be zero
             if meta.destination.node_count > 0:
-                if __debug__:
-                    # note that the statistics is different from the truth when less than NODE_COUNT
-                    # candidates can be found
-                    self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages) * meta.destination.node_count)
+                # note that the statistics is different from the truth when less than NODE_COUNT
+                # candidates can be found
+                self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages) * meta.destination.node_count)
                 return all(self._endpoint.send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message.packet]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
-            if __debug__:
-                self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages))
+            self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages))
             return all(self._endpoint.send(message.destination.candidates, [message.packet]) for message in messages if message.destination.candidates)
 
         elif isinstance(meta.destination, MemberDestination):
@@ -2973,8 +2974,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         packets = [str(packet) for packet, in self._database.execute(u"SELECT packet FROM malicious_proof WHERE community = ? AND member = ?",
                                                                      (community.database_id, member.database_id))]
         if packets:
-            if __debug__:
-                self._statistics.dict_inc(self._statistics.outgoing, u"-malicious-proof", len(packets))
+            self._statistics.dict_inc(self._statistics.outgoing, u"-malicious-proof", len(packets))
             self._endpoint.send([candidate], packets)
 
     def create_missing_message(self, community, candidate, member, global_time, response_func=None, response_args=(), timeout=10.0):
@@ -3017,10 +3017,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     responses.append((candidate, str(packet)))
 
         for candidate, responses in groupby(responses, key=lambda tup: tup[0]):
-            if __debug__:
-                # responses is an iterator, for __debug__ we need a list
-                responses = list(responses)
-                self._statistics.dict_inc(self._statistics.outgoing, u"-missing-message", len(responses))
+            # responses is an iterator, for __debug__ we need a list
+            responses = list(responses)
+            self._statistics.dict_inc(self._statistics.outgoing, u"-missing-message", len(responses))
             self._endpoint.send([candidate], [packet for _, packet in responses])
 
     def create_missing_last_message(self, community, candidate, member, message, count_, response_func=None, response_args=(), timeout=10.0):
@@ -3211,7 +3210,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             if packets:
                 if __debug__:
                     dprint("responding with ", len(packets), " identity messages")
-                    self._statistics.dict_inc(self._statistics.outgoing, u"-dispersy-identity", len(packets))
+                self._statistics.dict_inc(self._statistics.outgoing, u"-dispersy-identity", len(packets))
                 self._endpoint.send([message.candidate], packets)
 
             else:
@@ -3551,8 +3550,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     key = (msg.authentication.member.database_id, msg.database_id, msg.distribution.sequence_number)
                     assert key in requests[candidate.sock_addr][1], [key, sorted(numbers), lowest, highest]
                     dprint("Syncing ", len(packet), " member:", key[0], " message:", key[1], " sequence:", key[2], " to " , candidate)
-
-                self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-", len(packets))
+            
+            self._statistics.dict_inc(self._statistics.outgoing, u"-sequence-", len(packets))
             self._endpoint.send([candidate], packets)
 
     def create_missing_proof(self, community, candidate, message, response_func=None, response_args=(), timeout=10.0):
@@ -3597,7 +3596,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if allowed and proofs:
                     if __debug__:
                         dprint(message.candidate, " found ", len(proofs), " [",", ".join("%s %d@%d" % (proof.name, proof.authentication.member.database_id, proof.distribution.global_time) for proof in proofs), "] for message ", msg.name, " ", message.payload.member.database_id, "@", message.payload.global_time)
-                        self._statistics.dict_inc(self._statistics.outgoing, u"-proof-", len(proofs))
+                    self._statistics.dict_inc(self._statistics.outgoing, u"-proof-", len(proofs))
                     self._endpoint.send([message.candidate], [proof.packet for proof in proofs])
 
                 else:
@@ -3944,8 +3943,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                         self.declare_malicious_member(member, [msg, message])
 
                         # the sender apparently does not have the offending dispersy-undo message, lets give
-                        if __debug__:
-                            self._statistics.dict_inc(self._statistics.outgoing, msg.name)
+                        self._statistics.dict_inc(self._statistics.outgoing, msg.name)
                         self._endpoint.send([message.candidate], [msg.packet])
 
                         if member == community.my_member:
