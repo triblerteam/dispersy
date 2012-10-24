@@ -51,6 +51,7 @@ def main(setup=None):
     command_line_parser.add_option("--port", action="store", type="int", help="Dispersy uses this UDL port", default=12345)
     command_line_parser.add_option("--script", action="store", type="string", help="Script to execute, i.e. module.module.class", default="")
     command_line_parser.add_option("--kargs", action="store", type="string", help="Executes --script with these arguments.  Example 'startingtimestamp=1292333014,endingtimestamp=12923340000'")
+    command_line_parser.add_option("--debugstatistics", action="store_true", help="turn on debug statistics", default=False)
     # # swift
     # command_line_parser.add_option("--swiftproc", action="store_true", help="Use swift to tunnel all traffic", default=False)
     # command_line_parser.add_option("--swiftpath", action="store", type="string", default="./swift")
@@ -69,6 +70,8 @@ def main(setup=None):
     currentThread().setName('Dispersy')
     callback = Callback()
     dispersy = Dispersy.get_instance(callback, unicode(opt.statedir))
+    dispersy.statistics.enable_debug_statistics(opt.debugstatistics)
+    
     # if opt.swiftproc:
     #     from Tribler.Core.Swift.SwiftProcessMgr import SwiftProcessMgr
     #     sesslock = threading.Lock()
@@ -79,6 +82,7 @@ def main(setup=None):
     # else:
     dispersy.endpoint = StandaloneEndpoint(dispersy, opt.port, opt.ip)
     dispersy.endpoint.start()
+    
 
     # register tasks
     callback.register(watchdog, (dispersy,))
