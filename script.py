@@ -273,6 +273,7 @@ class ScenarioScriptBase(ScriptBase):
         prev_total_dropped = {}
         prev_total_delayed = {}
         prev_total_outgoing = {}
+        prev_total_fail = {}
 
         # start the scenario
         while True:
@@ -309,7 +310,7 @@ class ScenarioScriptBase(ScriptBase):
 
             total_received = {}
             didChange = False
-            if hasattr(self._dispersy.statistics, 'success'):
+            if self._dispersy.statistics.success:
                 for key, value in self._dispersy.statistics.success.iteritems():
                     key = make_valid_key(key)
                     total_received[key] = value
@@ -322,7 +323,7 @@ class ScenarioScriptBase(ScriptBase):
 
             total_dropped = {}
             didChange = False
-            if hasattr(self._dispersy.statistics, 'drop'):
+            if self._dispersy.statistics.drop:
                 for key, value in self._dispersy.statistics.drop.iteritems():
                     key = make_valid_key(key)
                     total_dropped[key] = value
@@ -336,7 +337,7 @@ class ScenarioScriptBase(ScriptBase):
                 
             total_delayed = {}
             didChange = False
-            if hasattr(self._dispersy.statistics, 'delay'):
+            if self._dispersy.statistics.delay:
                 for key, value in self._dispersy.statistics.delay.iteritems():
                     key = make_valid_key(key)
                     total_delayed[key] = value
@@ -350,7 +351,7 @@ class ScenarioScriptBase(ScriptBase):
 
             total_outgoing = {}
             didChange = False
-            if hasattr(self._dispersy.statistics, 'outgoing'):
+            if self._dispersy.statistics.outgoing:
                 for key, value in self._dispersy.statistics.outgoing.iteritems():
                     key = make_valid_key(key)
                     total_outgoing[key] = value
@@ -360,7 +361,21 @@ class ScenarioScriptBase(ScriptBase):
 
             if didChange:
                 log("dispersy.log", "statistics-outgoing-messages", **total_outgoing)
-                prev_total_outgoing = total_outgoing                
+                prev_total_outgoing = total_outgoing    
+                
+            total_fail = {}
+            didChange = False
+            if self._dispersy.statistics.walk_fail:
+                for key, value in self._dispersy.statistics.walk_fail.iteritems():
+                    key = make_valid_key(key)
+                    total_fail[key] = value
+                    
+                    if prev_total_fail.get(key, None) != value:
+                        didChange = True
+
+            if didChange:
+                log("dispersy.log", "statistics-walk-fail-messages", **total_fail)
+                prev_total_fail = total_fail              
 
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
