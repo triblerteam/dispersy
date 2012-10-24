@@ -116,7 +116,8 @@ class IntroductionRequestCache(Cache):
         # _periodically_cleanup_candidates
         if __debug__:
             dprint("walker timeout for ", self.helper_candidate)
-            self.community.dispersy.statistics.dict_inc(self.community.dispersy.statistics.walk_fail, self.helper_candidate.sock_addr)
+            
+        self.community.dispersy.statistics.dict_inc(self.community.dispersy.statistics.walk_fail, self.helper_candidate.sock_addr)
 
         # we choose to set the entire helper to inactive instead of just the community where the
         # timeout occurred.  this will allow us to quickly respond to nodes going offline, while the
