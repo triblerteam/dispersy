@@ -1873,9 +1873,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         # store to disk and update locally
         if __debug__:
             dprint("in... ", len(messages), " ", meta.name, " messages from ", ", ".join(str(candidate) for candidate in set(message.candidate for message in messages)))
-        self._statistics.dict_inc(self._statistics.success, meta.name, len(messages))
         self.store_update_forward(messages, True, True, False)
-        self._statistics.success_count += len(messages)
 
         # tell what happened
         if __debug__:
@@ -2834,6 +2832,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if store and any(message.authentication.member == message.community.my_member for message in messages):
             if __debug__: dprint("commit user generated message")
             self._database.commit()
+            
+        self._statistics.dict_inc(self._statistics.success, messages[0].meta.name, len(messages))
+        self._statistics.success_count += len(messages)
 
         if forward:
             if not self._forward(messages):
