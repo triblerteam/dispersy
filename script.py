@@ -367,7 +367,7 @@ class ScenarioScriptBase(ScriptBase):
             didChange = False
             if self._dispersy.statistics.walk_fail:
                 for key, value in self._dispersy.statistics.walk_fail.iteritems():
-                    key = make_valid_key(key)
+                    key = make_valid_key(str(key))
                     total_fail[key] = value
                     
                     if prev_total_fail.get(key, None) != value:
