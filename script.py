@@ -232,6 +232,7 @@ class ScenarioScriptBase(ScriptBase):
         #
         with open('data/peer.conf') as fp:
             self._my_name, ip, port, self._starting_timestamp = fp.readline().split()
+            self._starting_timestamp = long(self._starting_timestamp)
             self._my_address = (ip, int(port))
 
         log(self._logfile, "Read config done", my_name = self._my_name, my_address = self._my_address)
