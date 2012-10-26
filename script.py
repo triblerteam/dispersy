@@ -119,12 +119,12 @@ class ScenarioScriptBase(ScriptBase):
         
         self._nr_peers = self.__get_nr_peers()
         
-        if 'startingtimestamp' in kargs:
-            self._starting_timestamp = int(kargs['startingtimestamp'])
-            log(self._logfile, "Using %d as startingtimestamp, will wait for %d seconds"%(self._starting_timestamp, self._starting_timestamp - int(time())))
+        if 'starting_timestamp' in kargs:
+            self._starting_timestamp = int(kargs['starting_timestamp'])
+            log(self._logfile, "Using %d as starting timestamp, will wait for %d seconds"%(self._starting_timestamp, self._starting_timestamp - int(time())))
         else:
             self._starting_timestamp = int(time())
-            log(self._logfile, "No startingtimestamp specified, using currentime")
+            log(self._logfile, "No starting_timestamp specified, using currentime")
 
     @property
     def enable_wait_for_wan_address(self):
@@ -231,12 +231,10 @@ class ScenarioScriptBase(ScriptBase):
         # name, ip, port, public and private key
         #
         with open('data/peer.conf') as fp:
-            self._my_name, ip, port, self._starting_timestamp = fp.readline().split()
-            self._starting_timestamp = long(self._starting_timestamp)
+            self._my_name, ip, port, _ = fp.readline().split()
             self._my_address = (ip, int(port))
 
         log(self._logfile, "Read config done", my_name = self._my_name, my_address = self._my_address)
-        log(self._logfile, "Using %d as startingtimestamp, will wait for %d seconds"%(self._starting_timestamp, self._starting_timestamp - int(time())))
 
         # create my member
         ec = ec_generate_key(u"low")
