@@ -112,13 +112,19 @@ class ScenarioScriptBase(ScriptBase):
 
         self._timestep = float(kargs.get('timestep', 1.0))
         self._stepcount = 0
-        self._starting_timestamp = float(kargs.get('starting_timestamp', time()))
         self._logfile = logfile
         
         self._my_name = None
         self._my_address = None
         
         self._nr_peers = self.__get_nr_peers()
+        
+        if 'startingtimestamp' in kargs:
+            self._starting_timestamp = int(kargs['startingtimestamp'])
+            log(self._logfile, "Using %d as startingtimestamp, will wait for %d seconds"%(self._starting_timestamp, self._starting_timestamp - int(time())))
+        else:
+            self._starting_timestamp = int(time())
+            log(self._logfile, "No startingtimestamp specified, using currentime")
 
     @property
     def enable_wait_for_wan_address(self):
