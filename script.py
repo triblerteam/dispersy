@@ -231,10 +231,11 @@ class ScenarioScriptBase(ScriptBase):
         # name, ip, port, public and private key
         #
         with open('data/peer.conf') as fp:
-            self._my_name, ip, port, _ = fp.readline().split()
+            self._my_name, ip, port, self._starting_timestamp = fp.readline().split()
             self._my_address = (ip, int(port))
 
-        if __debug__: log(self._logfile, "read-config-done", my_name = self._my_name, my_address = self._my_address)
+        log(self._logfile, "Read config done", my_name = self._my_name, my_address = self._my_address)
+        log(self._logfile, "Using %d as startingtimestamp, will wait for %d seconds"%(self._starting_timestamp, self._starting_timestamp - int(time())))
 
         # create my member
         ec = ec_generate_key(u"low")
