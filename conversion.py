@@ -1040,14 +1040,18 @@ class BinaryConversion(Conversion):
 
     def _encode_member_authentication_signature(self, container, message, sign):
         assert message.authentication.member.private_key, (message.authentication.member.database_id, message.authentication.member.mid.encode("HEX"), id(message.authentication.member))
-        if sign:
-            data = "".join(container)
-            signature = message.authentication.member.sign(data)
-            message.authentication.set_signature(signature)
-            return data + signature
-
+        if message.authentication.verify_signature:
+            if sign:
+                data = "".join(container)
+                signature = message.authentication.member.sign(data)
+                message.authentication.set_signature(signature)
+                return data + signature
+    
+            else:
+                return data + "\x00" * message.authentication.member.signature_length
         else:
-            return data + "\x00" * message.authentication.member.signature_length
+            message.authentication.set_signature("foobar")
+            return "".join(container)
 
     def _encode_double_member_authentication_signature(self, container, message, sign):
         data = "".join(container)
