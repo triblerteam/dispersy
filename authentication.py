@@ -115,6 +115,7 @@ class MemberAuthentication(Authentication):
             super(MemberAuthentication.Implementation, self).__init__(meta)
             self._member = member
             self._is_signed = is_signed
+            self._verify_signature = meta.verify_signature
 
         @property
         def encoding(self):
@@ -139,8 +140,12 @@ class MemberAuthentication(Authentication):
 
         def set_signature(self, signature):
             self._is_signed = True
+            
+        @property
+        def verify_signature(self):
+            return self._verify_signature
 
-    def __init__(self, encoding="sha1"):
+    def __init__(self, encoding="sha1", verify_signature = True):
         """
         Initialize a new MemberAuthentication instance.
 
@@ -163,6 +168,7 @@ class MemberAuthentication(Authentication):
         assert isinstance(encoding, str)
         assert encoding in ("bin", "sha1")
         self._encoding = encoding
+        self._verify_signature = verify_signature
 
     @property
     def encoding(self):
@@ -171,6 +177,10 @@ class MemberAuthentication(Authentication):
         @rtype: string
         """
         return self._encoding
+    
+    @property
+    def verify_signature(self):
+        return self._verify_signature
 
 class DoubleMemberAuthentication(Authentication):
     """

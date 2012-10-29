@@ -13,6 +13,7 @@ from .distribution import FullSyncDistribution, LastSyncDistribution, DirectDist
 from .message import DelayPacketByMissingMember, DropPacket, Message
 from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
+from .member import DummyMember
 
 if __debug__:
     from .authentication import Authentication
@@ -1166,22 +1167,30 @@ class BinaryConversion(Conversion):
                 raise DropPacket("Insufficient packet size (_decode_member_authentication sha1)")
             member_id = data[offset:offset+20]
             offset += 20
-
-            members = [member for member in self._community.dispersy.get_members_from_id(member_id) if member.has_identity(self._community)]
-            if not members:
+            
+            if authentication.verify_signature:
+                members = [member for member in self._community.dispersy.get_members_from_id(member_id) if member.has_identity(self._community)]
+                if not members:
+                    raise DelayPacketByMissingMember(self._community, member_id)
+    
+                # signatures are enabled, verify that the signature matches the member sha1
+                # identifier
+                for member in members:
+                    first_signature_offset = len(data) - member.signature_length
+                    if (not placeholder.verify and len(members) == 1) or member.verify(data, data[first_signature_offset:], length=first_signature_offset):
+                        placeholder.offset = offset
+                        placeholder.first_signature_offset = first_signature_offset
+                        placeholder.authentication = MemberAuthentication.Implementation(authentication, member, is_signed=True)
+                        return
+    
                 raise DelayPacketByMissingMember(self._community, member_id)
-
-            # signatures are enabled, verify that the signature matches the member sha1
-            # identifier
-            for member in members:
-                first_signature_offset = len(data) - member.signature_length
-                if (not placeholder.verify and len(members) == 1) or member.verify(data, data[first_signature_offset:], length=first_signature_offset):
-                    placeholder.offset = offset
-                    placeholder.first_signature_offset = first_signature_offset
-                    placeholder.authentication = MemberAuthentication.Implementation(authentication, member, is_signed=True)
-                    return
-
-            raise DelayPacketByMissingMember(self._community, member_id)
+            
+            else:
+                # message is NOT signed.  use a dummy member
+                placeholder.offset = offset
+                placeholder.first_signature_offset = len(data)
+                placeholder.authentication = MemberAuthentication.Implementation(authentication, DummyMember(member_id), is_signed=True)
+                return
 
         elif authentication.encoding == "bin":
             if len(data) < offset + 2:
