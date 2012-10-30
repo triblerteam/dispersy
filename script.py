@@ -312,7 +312,7 @@ class ScenarioScriptBase(ScriptBase):
             bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
             candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
             
-            log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
+            log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, delay_timeout = self._dispersy.statistics.delay_timeout, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
 
             total_received = {}
             didChange = False
