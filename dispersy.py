@@ -2397,7 +2397,9 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             # drop all requests that have an outstanding identifier.  This is not a perfect
             # solution, but the change that two nodes select the same identifier and send requests
             # to each other is relatively small.
-            if self._request_cache.has(message.payload.identifier, IntroductionRequestCache):
+            # 30/10/12 Niels: additionally check if both our lan_addresses are the same. They should
+            # be if we're sending it to ourself. Not checking wan_address as that is subject to change.
+            if self._request_cache.has(message.payload.identifier, IntroductionRequestCache) and self._lan_address == message.payload.source_lan_address:
                 if __debug__: dprint("dropping dispersy-introduction-request, this identifier is already in use.")
                 yield DropMessage(message, "Duplicate identifier from %s (most likely received from ourself)" % str(message.candidate))
                 continue
@@ -2427,7 +2429,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             if (message.payload.connection_type == u"symmetric-NAT" and
                 introduced.connection_type == u"symmetric-NAT" and
                 not candidate.wan_address[0] == introduced.wan_address[0]):
-                # must not introduce two nodes that are behind the same symmetric NAT
+                # must not introduce two nodes that are behind a different symmetric NAT
                 return False
 
             return True
