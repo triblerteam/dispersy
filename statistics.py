@@ -34,7 +34,6 @@ class DispersyStatistics(Statistics):
         self.delay_timeout = 0
         self.success_count = 0
         self.received_count = 0
-        self.timestamp = None
         self.total_down = None
         self.total_up = None
         self.walk_attempt = 0
@@ -92,6 +91,7 @@ class DispersyStatistics(Statistics):
         self._dispersy.endpoint.reset_statistics()
         self.total_down = self._dispersy.endpoint.total_down
         self.total_up = self._dispersy.endpoint.total_up
+        self.start = self.timestamp = time()
 
         self.walk_attempt = 0
         self.walk_reset = 0
