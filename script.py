@@ -307,111 +307,112 @@ class ScenarioScriptBase(ScriptBase):
                 if availability_cmds != -1 and 'stop' in availability_cmds:
                     self.set_offline()
                 
-            #print statistics
-            self._dispersy.statistics.update()
-            bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
-            candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
-            
-            log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, delay_timeout = self._dispersy.statistics.delay_timeout, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
-
-            total_received = {}
-            didChange = False
-            if self._dispersy.statistics.success:
-                for key, value in self._dispersy.statistics.success.iteritems():
-                    key = make_valid_key(key)
-                    total_received[key] = value
-                    if prev_total_received.get(key, None) != value:
-                        didChange = True
-
-            if didChange:
-                log("dispersy.log", "statistics-successful-messages", **total_received)
-                prev_total_received = total_received
-
-            total_dropped = {}
-            didChange = False
-            if self._dispersy.statistics.drop:
-                for key, value in self._dispersy.statistics.drop.iteritems():
-                    key = make_valid_key(key)
-                    total_dropped[key] = value
-                    
-                    if prev_total_dropped.get(key, None) != value:
-                        didChange = True
-
-            if didChange:
-                log("dispersy.log", "statistics-dropped-messages", **total_dropped)
-                prev_total_dropped = total_dropped
+            if self._stepcount % 2 == 0:
+                #print statistics
+                self._dispersy.statistics.update()
+                bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
+                candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
                 
-            total_delayed = {}
-            didChange = False
-            if self._dispersy.statistics.delay:
-                for key, value in self._dispersy.statistics.delay.iteritems():
-                    key = make_valid_key(key)
-                    total_delayed[key] = value
+                log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, delay_timeout = self._dispersy.statistics.delay_timeout, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
+    
+                total_received = {}
+                didChange = False
+                if self._dispersy.statistics.success:
+                    for key, value in self._dispersy.statistics.success.iteritems():
+                        key = make_valid_key(key)
+                        total_received[key] = value
+                        if prev_total_received.get(key, None) != value:
+                            didChange = True
+    
+                if didChange:
+                    log("dispersy.log", "statistics-successful-messages", **total_received)
+                    prev_total_received = total_received
+    
+                total_dropped = {}
+                didChange = False
+                if self._dispersy.statistics.drop:
+                    for key, value in self._dispersy.statistics.drop.iteritems():
+                        key = make_valid_key(key)
+                        total_dropped[key] = value
+                        
+                        if prev_total_dropped.get(key, None) != value:
+                            didChange = True
+    
+                if didChange:
+                    log("dispersy.log", "statistics-dropped-messages", **total_dropped)
+                    prev_total_dropped = total_dropped
                     
-                    if prev_total_delayed.get(key, None) != value:
-                        didChange = True
-
-            if didChange:
-                log("dispersy.log", "statistics-delayed-messages", **total_delayed)
-                prev_total_delayed = total_delayed
-
-            total_outgoing = {}
-            didChange = False
-            if self._dispersy.statistics.outgoing:
-                for key, value in self._dispersy.statistics.outgoing.iteritems():
-                    key = make_valid_key(key)
-                    total_outgoing[key] = value
+                total_delayed = {}
+                didChange = False
+                if self._dispersy.statistics.delay:
+                    for key, value in self._dispersy.statistics.delay.iteritems():
+                        key = make_valid_key(key)
+                        total_delayed[key] = value
+                        
+                        if prev_total_delayed.get(key, None) != value:
+                            didChange = True
+    
+                if didChange:
+                    log("dispersy.log", "statistics-delayed-messages", **total_delayed)
+                    prev_total_delayed = total_delayed
+    
+                total_outgoing = {}
+                didChange = False
+                if self._dispersy.statistics.outgoing:
+                    for key, value in self._dispersy.statistics.outgoing.iteritems():
+                        key = make_valid_key(key)
+                        total_outgoing[key] = value
+                        
+                        if prev_total_outgoing.get(key, None) != value:
+                            didChange = True
+    
+                if didChange:
+                    log("dispersy.log", "statistics-outgoing-messages", **total_outgoing)
+                    prev_total_outgoing = total_outgoing    
                     
-                    if prev_total_outgoing.get(key, None) != value:
-                        didChange = True
+                total_fail = {}
+                didChange = False
+                if self._dispersy.statistics.walk_fail:
+                    for key, value in self._dispersy.statistics.walk_fail.iteritems():
+                        key = make_valid_key(str(key))
+                        total_fail[key] = value
+                        
+                        if prev_total_fail.get(key, None) != value:
+                            didChange = True
+    
+                if didChange:
+                    log("dispersy.log", "statistics-walk-fail", **total_fail)
+                    prev_total_fail = total_fail              
+    
+    #            def callback_cmp(a, b):
+    #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
+    #            keys = self._dispersy.callback._statistics.keys()
+    #            keys.sort(reverse = True)
+    #
+    #            total_run = {}
+    #            for key in keys[:10]:
+    #                total_run[make_valid_key(key)] = self._dispersy.callback._statistics[key]
+    #            if len(total_run) > 0:
+    #                log("dispersy.log", "statistics-callback-run", **total_run)
+    
+    #            stats = Conversion.debug_stats
+    #            total = stats["encode-message"]
+    #            nice_total = {'encoded':stats["-encode-count"], 'total':"%.2fs"%total}
+    #            for key, value in sorted(stats.iteritems()):
+    #                if key.startswith("encode") and not key == "encode-message" and total:
+    #                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
+    #            log("dispersy.log", "statistics-encode", **nice_total)
+    #
+    #            total = stats["decode-message"]
+    #            nice_total = {'decoded':stats["-decode-count"], 'total':"%.2fs"%total}
+    #            for key, value in sorted(stats.iteritems()):
+    #                if key.startswith("decode") and not key == "decode-message" and total:
+    #                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
+    #            log("dispersy.log", "statistics-decode", **nice_total)
 
-            if didChange:
-                log("dispersy.log", "statistics-outgoing-messages", **total_outgoing)
-                prev_total_outgoing = total_outgoing    
-                
-            total_fail = {}
-            didChange = False
-            if self._dispersy.statistics.walk_fail:
-                for key, value in self._dispersy.statistics.walk_fail.iteritems():
-                    key = make_valid_key(str(key))
-                    total_fail[key] = value
-                    
-                    if prev_total_fail.get(key, None) != value:
-                        didChange = True
-
-            if didChange:
-                log("dispersy.log", "statistics-walk-fail", **total_fail)
-                prev_total_fail = total_fail              
-
-#            def callback_cmp(a, b):
-#                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
-#            keys = self._dispersy.callback._statistics.keys()
-#            keys.sort(reverse = True)
-#
-#            total_run = {}
-#            for key in keys[:10]:
-#                total_run[make_valid_key(key)] = self._dispersy.callback._statistics[key]
-#            if len(total_run) > 0:
-#                log("dispersy.log", "statistics-callback-run", **total_run)
-
-#            stats = Conversion.debug_stats
-#            total = stats["encode-message"]
-#            nice_total = {'encoded':stats["-encode-count"], 'total':"%.2fs"%total}
-#            for key, value in sorted(stats.iteritems()):
-#                if key.startswith("encode") and not key == "encode-message" and total:
-#                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
-#            log("dispersy.log", "statistics-encode", **nice_total)
-#
-#            total = stats["decode-message"]
-#            nice_total = {'decoded':stats["-decode-count"], 'total':"%.2fs"%total}
-#            for key, value in sorted(stats.iteritems()):
-#                if key.startswith("decode") and not key == "decode-message" and total:
-#                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
-#            log("dispersy.log", "statistics-decode", **nice_total)
-
-            desync = yield self._timestep
-            self.log_desync(desync)
-
+            sleep = self.sleep()
+            self.log_desync(1.0 - sleep)
+            yield sleep
             self._stepcount += 1
 
 class DispersyClassificationScript(ScriptBase):
