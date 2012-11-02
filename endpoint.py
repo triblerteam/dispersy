@@ -111,9 +111,11 @@ class StandaloneEndpoint(Endpoint):
                     while True:
                         (data, sock_addr) = recvfrom(65535)
                         packets.append((sock_addr, data))
+                        
                 except socket.error:
-                    pass
-
+                    if DEBUG:
+                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
+                        
                 finally:
                     if packets:
                         if DEBUG:
