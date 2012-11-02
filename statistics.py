@@ -103,13 +103,15 @@ class DispersyStatistics(Statistics):
         self.walk_bootstrap_attempt = 0
         self.walk_bootstrap_success = 0
 
-        if __debug__:
+        if self.are_debug_statistics_enabled():
             self.drop = {}
             self.delay = {}
             self.success = {}
             self.outgoing = {}
             self.walk_fail = {}
             self.attachment = {}
+            self.endpoint_recv = {}
+            self.endpoint_send = {}
 
 class CommunityStatistics(Statistics):
     def __init__(self, community):
