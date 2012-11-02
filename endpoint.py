@@ -138,43 +138,24 @@ class RawserverEndpoint(Endpoint):
                      for candidate, data
                      in product(candidates, packets)]
 
-            if self._sendqueue:
-                self._sendqueue.extend(batch)
-
-            elif len(batch) > 50:
-                self._sendqueue.extend(batch)
-                # print >> sys.stderr, "endpoint: throttling", len(self._sendqueue), "(first schedule)"
-                self._add_task(self._process_sendqueue)
-
-            else:
-                for index, (sock_addr, data) in enumerate(batch):
-                    try:
-                        self._socket.sendto(data, sock_addr)
-                        if DEBUG:
-                            try:
-                                name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
-                            except:
-                                name = "???"
-                            print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
-                            self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, name)
-
-
-                    except socket.error, e:
-                        if e[0] == SOCKET_BLOCK_ERRORCODE:
-                            self._sendqueue.extend(batch[index:])
-                            # print >> sys.stderr, "endpoint: overflowing", len(self._sendqueue), "(first schedule)"
-                            self._add_task(self._process_sendqueue, 0.1)
-                            break
-
+            did_have_senqueue = bool(self._sendqueue)
+            self._sendqueue.extend(batch)
+            
+            # If we did not already a sendqueue, then we need to call process_sendqueue in order send these messages
+            if not did_have_senqueue:    
+                self._process_sendqueue()
+            
             # return True when something has been send
-            return candidates and packets
+            return len(batch) > 0
 
     def _process_sendqueue(self):
         with self._sendqueue_lock:
             assert self._sendqueue
             index = -1
             NUM_PACKETS = max(50, len(self._sendqueue) / 10)
-
+            print >> sys.stdout, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
+            
+            
             for index, (sock_addr, data) in enumerate(self._sendqueue[:NUM_PACKETS]):
                 try:
                     self._socket.sendto(data, sock_addr)
@@ -195,7 +176,7 @@ class RawserverEndpoint(Endpoint):
             self._sendqueue = self._sendqueue[index+1:]
             if self._sendqueue:
                 self._add_task(self._process_sendqueue, 0.1)
-                # print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
+                print >> sys.stdout, "endpoint:", len(self._sendqueue), "left in queue"
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
