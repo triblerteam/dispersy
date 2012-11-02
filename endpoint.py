@@ -84,7 +84,7 @@ class RawserverEndpoint(Endpoint):
         self._add_task = self._rawserver.add_task
         self._dispersy = dispersy
         
-        self._sendqueue_lock = threading.Lock()
+        self._sendqueue_lock = threading.RLock()
         self._sendqueue = []
 
     def get_address(self):
@@ -154,7 +154,6 @@ class RawserverEndpoint(Endpoint):
             index = -1
             NUM_PACKETS = max(50, len(self._sendqueue) / 10)
             print >> sys.stdout, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
-            
             
             for index, (sock_addr, data) in enumerate(self._sendqueue[:NUM_PACKETS]):
                 try:
