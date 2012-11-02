@@ -207,7 +207,7 @@ class StandaloneEndpoint(RawserverEndpoint):
         self._callback = self._dispersy._callback
         self._add_task = lambda task, delay = 0.0: self._callback.register(task, delay=delay)
         
-        self._sendqueue_lock = threading.Lock()
+        self._sendqueue_lock = threading.RLock()
         self._sendqueue = []
 
     def start(self):
