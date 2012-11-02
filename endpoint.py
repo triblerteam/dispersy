@@ -174,6 +174,7 @@ class RawserverEndpoint(Endpoint):
                     if e[0] == SOCKET_BLOCK_ERRORCODE:
                         break
                     else:
+                        print >> sys.stderr, "endpoint: could not send", len(data), "to", sock_addr
                         print_exc()
 
             self._sendqueue = self._sendqueue[index+1:]
