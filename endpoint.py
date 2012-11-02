@@ -154,12 +154,13 @@ class RawserverEndpoint(Endpoint):
     def _process_sendqueue(self):
         with self._sendqueue_lock:
             assert self._sendqueue
-            index = -1
+            
+            index = 0
             NUM_PACKETS = max(50, len(self._sendqueue) / 10)
             if DEBUG:
                 print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
             
-            for index, (sock_addr, data) in enumerate(self._sendqueue[:NUM_PACKETS]):
+            for sock_addr, data in self._sendqueue[:NUM_PACKETS]:
                 try:
                     self._socket.sendto(data, sock_addr)
                     if DEBUG:
@@ -169,15 +170,17 @@ class RawserverEndpoint(Endpoint):
                             name = "???"
                         print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
                         self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, name)
+                        
+                    index += 1
 
                 except socket.error, e:
-                    if e[0] == SOCKET_BLOCK_ERRORCODE:
-                        break
-                    else:
+                    if e[0] != SOCKET_BLOCK_ERRORCODE:
                         print >> sys.stderr, "endpoint: could not send", len(data), "to", sock_addr
                         print_exc()
+                        
+                    break
 
-            self._sendqueue = self._sendqueue[index+1:]
+            self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
                 self._add_task(self._process_sendqueue, 0.1)
                 if DEBUG:
