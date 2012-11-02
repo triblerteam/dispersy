@@ -164,7 +164,7 @@ class StandaloneEndpoint(Endpoint):
                     self._socket.sendto(data, sock_addr)
                 except socket.error:
                     if DEBUG:
-                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
+                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, u"socket-error")
 
                     return False
 
