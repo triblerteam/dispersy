@@ -212,7 +212,7 @@ class StandaloneEndpoint(RawserverEndpoint):
         
         def add_task(task, delay = 0.0, id = ""):
             if id:
-                self._callback.persistent_register(task, delay=delay, id_=id)
+                self._callback.persistent_register(id, task, delay=delay)
             else:
                 self._callback.register(task, delay=delay)
                 
