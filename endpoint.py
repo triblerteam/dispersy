@@ -199,7 +199,7 @@ class RawserverEndpoint(Endpoint):
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
-        super(StandaloneEndpoint, self).__init__()
+        Endpoint.__init__(self)
         
         self._running = True
         self._dispersy = dispersy
@@ -252,43 +252,6 @@ class StandaloneEndpoint(RawserverEndpoint):
                 finally:
                     if packets:
                         self.data_came_in(packets)
-
-    def send(self, candidates, packets):
-        assert isinstance(candidates, (tuple, list, set)), type(candidates)
-        assert all(isinstance(candidate, Candidate) for candidate in candidates)
-        assert isinstance(packets, (tuple, list, set)), type(packets)
-        assert all(isinstance(packet, str) for packet in packets)
-        assert all(len(packet) > 0 for packet in packets)
-
-        self._total_up += sum(len(data) for data in packets) * len(candidates)
-        wan_address = self._dispersy.wan_address
-
-        for candidate in candidates:
-            sock_addr = candidate.get_destination_address(wan_address)
-            assert self._dispersy.is_valid_address(sock_addr), sock_addr
-
-            for data in packets:
-                if DEBUG:
-                    try:
-                        name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
-                    except:
-                        name = "???"
-                        
-                    print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
-                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, name)
-
-                if candidate.tunnel:
-                    data = TUNNEL_PREFIX + data
-                try:
-                    self._socket.sendto(data, sock_addr)
-                except socket.error:
-                    if DEBUG:
-                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, u"socket-error")
-
-                    return False
-
-        # return True when something has been send
-        return candidates and packets
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):
