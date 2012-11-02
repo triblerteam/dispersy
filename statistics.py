@@ -56,6 +56,8 @@ class DispersyStatistics(Statistics):
                 self.walk_fail = {}
                 self.attachment = {}
                 self.database = {}
+                self.endpoint_recv = {}
+                self.endpoint_send = {}
             else:
                 self.drop = None
                 self.delay = None
@@ -64,6 +66,8 @@ class DispersyStatistics(Statistics):
                 self.walk_fail = None
                 self.attachment = None
                 self.database = None
+                self.endpoint_recv = None
+                self.endpoint_send = None
                 
     def are_debug_statistics_enabled(self):
         return getattr(self, 'drop', None) != None

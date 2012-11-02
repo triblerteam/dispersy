@@ -266,8 +266,22 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
-        self._dispersy._statistics.reset()
+        def print_on_change(name, prev_dict, cur_dict):
+            total = {}
+            didChange = False
+            if cur_dict:
+                for key, value in cur_dict.iteritems():
+                    key = make_valid_key(key)
+                    total[key] = value
+                    if prev_dict.get(key, None) != value:
+                        didChange = True
+
+            if didChange:
+                log("dispersy.log", name, **total)
+                return total
+            return prev_dict
         
+        self._dispersy._statistics.reset()
         scenario_fp = open('data/bartercast.log')
         try:
             availability_fp = open('data/availability.log')
@@ -280,6 +294,8 @@ class ScenarioScriptBase(ScriptBase):
         prev_total_delayed = {}
         prev_total_outgoing = {}
         prev_total_fail = {}
+        prev_endpoint_recv = {}
+        prev_endpoint_send = {}
 
         # start the scenario
         while True:
@@ -315,74 +331,13 @@ class ScenarioScriptBase(ScriptBase):
                 
                 log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, delay_timeout = self._dispersy.statistics.delay_timeout, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
     
-                total_received = {}
-                didChange = False
-                if self._dispersy.statistics.success:
-                    for key, value in self._dispersy.statistics.success.iteritems():
-                        key = make_valid_key(key)
-                        total_received[key] = value
-                        if prev_total_received.get(key, None) != value:
-                            didChange = True
-    
-                if didChange:
-                    log("dispersy.log", "statistics-successful-messages", **total_received)
-                    prev_total_received = total_received
-    
-                total_dropped = {}
-                didChange = False
-                if self._dispersy.statistics.drop:
-                    for key, value in self._dispersy.statistics.drop.iteritems():
-                        key = make_valid_key(key)
-                        total_dropped[key] = value
-                        
-                        if prev_total_dropped.get(key, None) != value:
-                            didChange = True
-    
-                if didChange:
-                    log("dispersy.log", "statistics-dropped-messages", **total_dropped)
-                    prev_total_dropped = total_dropped
-                    
-                total_delayed = {}
-                didChange = False
-                if self._dispersy.statistics.delay:
-                    for key, value in self._dispersy.statistics.delay.iteritems():
-                        key = make_valid_key(key)
-                        total_delayed[key] = value
-                        
-                        if prev_total_delayed.get(key, None) != value:
-                            didChange = True
-    
-                if didChange:
-                    log("dispersy.log", "statistics-delayed-messages", **total_delayed)
-                    prev_total_delayed = total_delayed
-    
-                total_outgoing = {}
-                didChange = False
-                if self._dispersy.statistics.outgoing:
-                    for key, value in self._dispersy.statistics.outgoing.iteritems():
-                        key = make_valid_key(key)
-                        total_outgoing[key] = value
-                        
-                        if prev_total_outgoing.get(key, None) != value:
-                            didChange = True
-    
-                if didChange:
-                    log("dispersy.log", "statistics-outgoing-messages", **total_outgoing)
-                    prev_total_outgoing = total_outgoing    
-                    
-                total_fail = {}
-                didChange = False
-                if self._dispersy.statistics.walk_fail:
-                    for key, value in self._dispersy.statistics.walk_fail.iteritems():
-                        key = make_valid_key(str(key))
-                        total_fail[key] = value
-                        
-                        if prev_total_fail.get(key, None) != value:
-                            didChange = True
-    
-                if didChange:
-                    log("dispersy.log", "statistics-walk-fail", **total_fail)
-                    prev_total_fail = total_fail              
+                prev_total_received = print_on_change("statistics-successful-messages", prev_total_received ,self._dispersy.statistics.success)
+                prev_total_dropped = print_on_change("statistics-dropped-messages", prev_total_dropped ,self._dispersy.statistics.drop)
+                prev_total_delayed = print_on_change("statistics-delayed-messages", prev_total_delayed ,self._dispersy.statistics.delay)
+                prev_total_outgoing = print_on_change("statistics-outgoing-messages", prev_total_outgoing ,self._dispersy.statistics.outgoing)
+                prev_total_fail = print_on_change("statistics-walk-fail", prev_total_fail ,self._dispersy.statistics.walk_fail)
+                prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
+                prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
     
     #            def callback_cmp(a, b):
     #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
