@@ -175,14 +175,14 @@ class RawserverEndpoint(Endpoint):
 
                 except socket.error, e:
                     if e[0] != SOCKET_BLOCK_ERRORCODE:
-                        print >> sys.stderr, "endpoint: could not send", len(data), "to", sock_addr
+                        print >> sys.stderr, long(time()), "endpoint: could not send", len(data), "to", sock_addr
                         print_exc()
                         
                     break
 
             self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                self._add_task(self._process_sendqueue, 0.1)
+                self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
                 if DEBUG:
                     print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
                 
@@ -209,8 +209,14 @@ class StandaloneEndpoint(RawserverEndpoint):
         
         self._rawserver = None
         self._callback = self._dispersy._callback
-        self._add_task = lambda task, delay = 0.0: self._callback.register(task, delay=delay)
         
+        def add_task(task, delay = 0.0, id = ""):
+            if id:
+                self._callback.persistent_register(task, delay=delay, id_=id)
+            else:
+                self._callback.register(task, delay=delay)
+                
+        self._add_task = add_task
         self._sendqueue_lock = threading.RLock()
         self._sendqueue = []
 
