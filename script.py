@@ -303,26 +303,19 @@ class ScenarioScriptBase(ScriptBase):
             scenario_cmds = self.get_commands_from_fp(scenario_fp, self._stepcount)
             availability_cmds = self.get_commands_from_fp(availability_fp, self._stepcount)
 
-            # if there are no commands exit the while loop
-            if scenario_cmds == -1 and availability_cmds == -1:
-                if __debug__: log(self._logfile, "no-commands")
-                break
-            
-            else:
-                # if there is a start in the avaibility_cmds then go
-                # online
-                if availability_cmds != -1 and 'start' in availability_cmds:
-                    self.set_online()
-
-                # if there are barter_cmds then execute them
-                if scenario_cmds != -1:
-                    self.execute_scenario_cmds(scenario_cmds)
-
-                # if there is a stop in the availability_cmds then go
-                # offline
-                if availability_cmds != -1 and 'stop' in availability_cmds:
-                    self.set_offline()
+            # if there is a start in the avaibility_cmds then go
+            # online
+            if availability_cmds != -1 and 'start' in availability_cmds:
+                self.set_online()
                 
+            # if there are barter_cmds then execute them
+            if scenario_cmds != -1:
+                self.execute_scenario_cmds(scenario_cmds)
+
+            # if there is a stop in the availability_cmds then go offline
+            if availability_cmds != -1 and 'stop' in availability_cmds:
+                self.set_offline()
+            
             if self._stepcount % 2 == 0:
                 #print statistics
                 self._dispersy.statistics.update()
