@@ -271,6 +271,9 @@ class ScenarioScriptBase(ScriptBase):
             didChange = False
             if cur_dict:
                 for key, value in cur_dict.iteritems():
+                    if not isinstance(key, (basestring, int, long)):
+                        key = str(key)
+                        
                     key = make_valid_key(key)
                     total[key] = value
                     if prev_dict.get(key, None) != value:
