@@ -156,7 +156,7 @@ class RawserverEndpoint(Endpoint):
             assert self._sendqueue
             
             index = 0
-            NUM_PACKETS = max(25, len(self._sendqueue) / 20)
+            NUM_PACKETS = max(50, len(self._sendqueue) / 10)
             if DEBUG:
                 print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
             
@@ -182,7 +182,11 @@ class RawserverEndpoint(Endpoint):
 
             self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                self._add_task(self._process_sendqueue, 0.05, "process_sendqueue")
+                # We did not completely empty buffer, move first item to back of queue
+                self._sendqueue.append(self._sendqueue.pop(0))
+                
+                # And schedule a new attempt
+                self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
                 if DEBUG:
                     print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
                 
