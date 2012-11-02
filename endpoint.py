@@ -138,22 +138,26 @@ class RawserverEndpoint(Endpoint):
                      for candidate, data
                      in product(candidates, packets)]
 
-            did_have_senqueue = bool(self._sendqueue)
-            self._sendqueue.extend(batch)
+            if len(batch) > 0:
+                did_have_senqueue = bool(self._sendqueue)
+                self._sendqueue.extend(batch)
+                
+                # If we did not already a sendqueue, then we need to call process_sendqueue in order send these messages
+                if not did_have_senqueue:    
+                    self._process_sendqueue()
             
-            # If we did not already a sendqueue, then we need to call process_sendqueue in order send these messages
-            if not did_have_senqueue:    
-                self._process_sendqueue()
+                # return True when something has been send
+                return True
             
-            # return True when something has been send
-            return len(batch) > 0
+        return False 
 
     def _process_sendqueue(self):
         with self._sendqueue_lock:
             assert self._sendqueue
             index = -1
             NUM_PACKETS = max(50, len(self._sendqueue) / 10)
-            print >> sys.stdout, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
+            if DEBUG:
+                print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
             
             for index, (sock_addr, data) in enumerate(self._sendqueue[:NUM_PACKETS]):
                 try:
@@ -175,7 +179,8 @@ class RawserverEndpoint(Endpoint):
             self._sendqueue = self._sendqueue[index+1:]
             if self._sendqueue:
                 self._add_task(self._process_sendqueue, 0.1)
-                print >> sys.stdout, "endpoint:", len(self._sendqueue), "left in queue"
+                if DEBUG:
+                    print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
