@@ -163,6 +163,9 @@ class StandaloneEndpoint(Endpoint):
                 try:
                     self._socket.sendto(data, sock_addr)
                 except socket.error:
+                    if DEBUG:
+                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
+
                     return False
 
         # return True when something has been send
