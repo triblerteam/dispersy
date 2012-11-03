@@ -144,7 +144,7 @@ class RawserverEndpoint(Endpoint):
                 
                 # If we did not already a sendqueue, then we need to call process_sendqueue in order send these messages
                 if not did_have_senqueue:    
-                    self._process_sendqueue()
+                    self._add_task(self._process_sendqueue)
             
                 # return True when something has been send
                 return True
@@ -182,8 +182,10 @@ class RawserverEndpoint(Endpoint):
 
             self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                # We did not completely empty buffer, move first item to back of queue
-                self._sendqueue.append(self._sendqueue.pop(0))
+                
+                if index != NUM_PACKETS:
+                    # We did not completely empty buffer, move first item to back of queue
+                    self._sendqueue.append(self._sendqueue.pop(0))
                 
                 # And schedule a new attempt
                 self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
@@ -215,6 +217,7 @@ class StandaloneEndpoint(RawserverEndpoint):
         self._callback = self._dispersy._callback
         
         def add_task(task, delay = 0.0, id = ""):
+            return
             if id:
                 self._callback.persistent_register(id, task, delay=delay)
             else:
@@ -236,7 +239,7 @@ class StandaloneEndpoint(RawserverEndpoint):
         listen_list = [self._socket.fileno()]
 
         while self._running:
-            ready_list, _, _ = select(listen_list, [], [], 1.0)
+            ready_list, _, _ = select(listen_list, [], [], 0.1)
             if ready_list:
                 packets = []
                 try:
@@ -251,6 +254,9 @@ class StandaloneEndpoint(RawserverEndpoint):
                 finally:
                     if packets:
                         self.data_came_in(packets)
+            
+            if self.sendqueue:
+                self._process_sendqueue()
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):
