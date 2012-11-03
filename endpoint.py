@@ -235,12 +235,15 @@ class StandaloneEndpoint(RawserverEndpoint):
 
     def _loop(self, port, ip):
         recvfrom = self._socket.recvfrom
-        listen_list = [self._socket.fileno()]
+        socket_list = [self._socket.fileno()]
         
-        prev_sendqueue = 0
         while self._running:
-            ready_list, _, _ = select(listen_list, [], [], 0.1)
-            if ready_list:
+            if self._sendqueue:
+                read_list, write_list, _ = select(socket_list, socket_list, [], 0.1)
+            else:
+                read_list, write_list, _ = select(socket_list, [], [], 0.1)
+                
+            if read_list:
                 packets = []
                 try:
                     while True:
@@ -255,9 +258,8 @@ class StandaloneEndpoint(RawserverEndpoint):
                     if packets:
                         self.data_came_in(packets)
             
-            if self._sendqueue and (time() - prev_sendqueue) > 0.1:
+            if write_list:
                 self._process_sendqueue()
-                prev_sendqueue = time()
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):
