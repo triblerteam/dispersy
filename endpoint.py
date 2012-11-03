@@ -237,9 +237,13 @@ class StandaloneEndpoint(RawserverEndpoint):
         recvfrom = self._socket.recvfrom
         socket_list = [self._socket.fileno()]
         
+        prev_sendqueue = 0
         while self._running:
-            if self._sendqueue:
-                read_list, write_list, _ = select([], socket_list, [], 0.1)
+            # This is a tricky, if we are running on the DAS4 whenever a socket is ready for writing all processes of
+            # this node will try to write.
+            # Therefore, we have to limit the frequency of trying to write a bit.
+            if self._sendqueue and (time() - prev_sendqueue) > 0.1:
+                read_list, write_list, _ = select(socket_list, socket_list, [], 0.1)
             else:
                 read_list, write_list, _ = select(socket_list, [], [], 0.1)
                 
@@ -259,8 +263,8 @@ class StandaloneEndpoint(RawserverEndpoint):
                         self.data_came_in(packets)
             
             if write_list:
-                print >> sys.stderr, long(time()), "endpoint: socket ready for writing", read_list, write_list
                 self._process_sendqueue()
+                prev_sendqueue = time()
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):
