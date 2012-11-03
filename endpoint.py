@@ -239,7 +239,7 @@ class StandaloneEndpoint(RawserverEndpoint):
         
         while self._running:
             if self._sendqueue:
-                read_list, write_list, _ = select(socket_list, socket_list, [], 0.1)
+                read_list, write_list, _ = select([], socket_list, [], 0.1)
             else:
                 read_list, write_list, _ = select(socket_list, [], [], 0.1)
                 
@@ -259,6 +259,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                         self.data_came_in(packets)
             
             if write_list:
+                print >> sys.stderr, long(time()), "endpoint: socket ready for writing", read_list, write_list
                 self._process_sendqueue()
 
 class TunnelEndpoint(Endpoint):
