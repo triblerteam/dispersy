@@ -175,17 +175,15 @@ class RawserverEndpoint(Endpoint):
 
                 except socket.error, e:
                     if e[0] != SOCKET_BLOCK_ERRORCODE:
-                        print >> sys.stderr, long(time()), "endpoint: could not send", len(data), "to", sock_addr, len(self._sendqueue)
-                        print_exc()
-                        
+                        if DEBUG:
+                            print >> sys.stderr, long(time()), "endpoint: could not send", len(data), "to", sock_addr, len(self._sendqueue)
+                            print_exc()
+                            
+                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, u"socket-error")
                     break
 
             self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                if index != NUM_PACKETS:
-                    # We did not completely empty buffer, move first item to back of queue
-                    self._sendqueue.append(self._sendqueue.pop(0))
-                
                 # And schedule a new attempt
                 self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
                 if DEBUG:
@@ -212,17 +210,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                 continue
             break
         
-        self._rawserver = None
-        self._callback = self._dispersy._callback
-        
-        def add_task(task, delay = 0.0, id = ""):
-            return
-            if id:
-                self._callback.persistent_register(id, task, delay=delay)
-            else:
-                self._callback.register(task, delay=delay)
-                
-        self._add_task = add_task
+        self._add_task = lambda task, delay = 0.0, id = "": None 
         self._sendqueue_lock = threading.RLock()
         self._sendqueue = []
 
@@ -240,13 +228,13 @@ class StandaloneEndpoint(RawserverEndpoint):
         prev_sendqueue = 0
         while self._running:
             # This is a tricky, if we are running on the DAS4 whenever a socket is ready for writing all processes of
-            # this node will try to write.
-            # Therefore, we have to limit the frequency of trying to write a bit.
+            # this node will try to write. Therefore, we have to limit the frequency of trying to write a bit.
             if self._sendqueue and (time() - prev_sendqueue) > 0.1:
                 read_list, write_list, _ = select(socket_list, socket_list, [], 0.1)
             else:
                 read_list, write_list, _ = select(socket_list, [], [], 0.1)
-                
+            
+            # Furthermore, if we are allowed to send, process sendqueue immediately
             if write_list:
                 self._process_sendqueue()
                 prev_sendqueue = time()
@@ -259,8 +247,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                         packets.append((sock_addr, data))
                         
                 except socket.error:
-                    if DEBUG:
-                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
+                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
                         
                 finally:
                     if packets:
