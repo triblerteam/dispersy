@@ -182,7 +182,6 @@ class RawserverEndpoint(Endpoint):
 
             self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                
                 if index != NUM_PACKETS:
                     # We did not completely empty buffer, move first item to back of queue
                     self._sendqueue.append(self._sendqueue.pop(0))
@@ -237,7 +236,8 @@ class StandaloneEndpoint(RawserverEndpoint):
     def _loop(self, port, ip):
         recvfrom = self._socket.recvfrom
         listen_list = [self._socket.fileno()]
-
+        
+        prev_sendqueue = 0
         while self._running:
             ready_list, _, _ = select(listen_list, [], [], 0.1)
             if ready_list:
@@ -255,8 +255,9 @@ class StandaloneEndpoint(RawserverEndpoint):
                     if packets:
                         self.data_came_in(packets)
             
-            if self._sendqueue:
+            if self._sendqueue and (time() - prev_sendqueue) > 0.1:
                 self._process_sendqueue()
+                prev_sendqueue = time()
 
 class TunnelEndpoint(Endpoint):
     def __init__(self, swift_process, dispersy):
