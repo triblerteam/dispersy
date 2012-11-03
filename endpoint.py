@@ -255,7 +255,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                     if packets:
                         self.data_came_in(packets)
             
-            if self.sendqueue:
+            if self._sendqueue:
                 self._process_sendqueue()
 
 class TunnelEndpoint(Endpoint):
