@@ -144,7 +144,7 @@ class RawserverEndpoint(Endpoint):
                 
                 # If we did not already a sendqueue, then we need to call process_sendqueue in order send these messages
                 if not did_have_senqueue:    
-                    self._add_task(self._process_sendqueue)
+                    self._process_sendqueue()
             
                 # return True when something has been send
                 return True
