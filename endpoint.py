@@ -244,7 +244,10 @@ class StandaloneEndpoint(RawserverEndpoint):
                 try:
                     while True:
                         (data, sock_addr) = recvfrom(65535)
-                        packets.append((sock_addr, data))
+                        if data:
+                            packets.append((sock_addr, data))
+                        else:
+                            break
                         
                 except socket.error:
                     self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
