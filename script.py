@@ -208,7 +208,7 @@ class ScenarioScriptBase(ScriptBase):
         expected_time = self._starting_timestamp + (self._timestep * (self._stepcount + 1))
         diff = expected_time - time()
         
-        delay = max(0.0, diff)
+        delay = max(0.8, diff)
         return delay
 
     def log_desync(self, desync):
