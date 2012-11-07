@@ -208,7 +208,7 @@ class ScenarioScriptBase(ScriptBase):
         expected_time = self._starting_timestamp + (self._timestep * (self._stepcount + 1))
         diff = expected_time - time()
         
-        delay = max(0.8, diff)
+        delay = max(0.0, diff)
         return delay
 
     def log_desync(self, desync):
@@ -292,6 +292,7 @@ class ScenarioScriptBase(ScriptBase):
             availability_fp = None
 
         self._stepcount += 1
+        
         prev_total_received = {}
         prev_total_dropped = {}
         prev_total_delayed = {}
@@ -299,6 +300,7 @@ class ScenarioScriptBase(ScriptBase):
         prev_total_fail = {}
         prev_endpoint_recv = {}
         prev_endpoint_send = {}
+        prev_stats_write = 0
 
         # start the scenario
         while True:
@@ -319,7 +321,7 @@ class ScenarioScriptBase(ScriptBase):
             if availability_cmds != -1 and 'stop' in availability_cmds:
                 self.set_offline()
             
-            if self._stepcount % 2 == 0:
+            if prev_stats_write + 2 < time():
                 #print statistics
                 self._dispersy.statistics.update()
                 bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
@@ -334,6 +336,8 @@ class ScenarioScriptBase(ScriptBase):
                 prev_total_fail = print_on_change("statistics-walk-fail", prev_total_fail ,self._dispersy.statistics.walk_fail)
                 prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
                 prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
+                
+                prev_stats_write = time()
     
     #            def callback_cmp(a, b):
     #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
