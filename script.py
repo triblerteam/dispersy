@@ -321,7 +321,7 @@ class ScenarioScriptBase(ScriptBase):
             if availability_cmds != -1 and 'stop' in availability_cmds:
                 self.set_offline()
             
-            if prev_stats_write + 3 < time():
+            if prev_stats_write + 5 < time():
                 #print statistics
                 self._dispersy.statistics.update()
                 bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
@@ -366,7 +366,8 @@ class ScenarioScriptBase(ScriptBase):
     #            log("dispersy.log", "statistics-decode", **nice_total)
 
             sleep = self.sleep()
-            self.log_desync(1.0 - sleep)
+            if sleep < 0.5:
+                self.log_desync(1.0 - sleep)
             yield sleep
             self._stepcount += 1
 
