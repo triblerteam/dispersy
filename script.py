@@ -321,7 +321,7 @@ class ScenarioScriptBase(ScriptBase):
             if availability_cmds != -1 and 'stop' in availability_cmds:
                 self.set_offline()
             
-            if prev_stats_write + 2 < time():
+            if prev_stats_write + 3 < time():
                 #print statistics
                 self._dispersy.statistics.update()
                 bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)

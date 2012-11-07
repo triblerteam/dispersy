@@ -249,8 +249,8 @@ class StandaloneEndpoint(RawserverEndpoint):
                         else:
                             break
                         
-                except socket.error:
-                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error")
+                except socket.error, e:
+                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_recv, u"socket-error-'%s'"%str(e))
                         
                 finally:
                     if packets:
