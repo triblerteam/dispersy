@@ -293,6 +293,7 @@ class ScenarioScriptBase(ScriptBase):
 
         self._stepcount += 1
         
+        prev_statistics = {}
         prev_total_received = {}
         prev_total_dropped = {}
         prev_total_delayed = {}
@@ -324,11 +325,12 @@ class ScenarioScriptBase(ScriptBase):
             if prev_stats_write + 5 < time():
                 #print statistics
                 self._dispersy.statistics.update()
+                
                 bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
                 candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
+                statistics= {'received_count': self._dispersy.statistics.received_count, 'total_send': self._dispersy.statistics.total_up, 'total_received': self._dispersy.statistics.total_down, 'total_dropped': self._dispersy.statistics.drop_count, 'delay_count': self._dispersy.statistics.delay_count, 'delay_success': self._dispersy.statistics.delay_success, 'delay_timeout': self._dispersy.statistics.delay_timeout, 'walk_attempt': self._dispersy.statistics.walk_attempt, 'walk_success': self._dispersy.statistics.walk_success, 'walk_reset': self._dispersy.statistics.walk_reset, 'conn_type': self._dispersy.statistics.connection_type, 'bl_reuse': bl_reuse, 'candidates': candidates}
+                prev_statistics = print_on_change("statistics", prev_statistics, statistics)
                 
-                log("dispersy.log", "statistics", received_count = self._dispersy.statistics.received_count, total_send = self._dispersy.statistics.total_up, total_received = self._dispersy.statistics.total_down, total_dropped = self._dispersy.statistics.drop_count, delay_count = self._dispersy.statistics.delay_count, delay_success = self._dispersy.statistics.delay_success, delay_timeout = self._dispersy.statistics.delay_timeout, walk_attempt = self._dispersy.statistics.walk_attempt, walk_success = self._dispersy.statistics.walk_success, walk_reset = self._dispersy.statistics.walk_reset, conn_type = self._dispersy.statistics.connection_type, bl_reuse = bl_reuse, candidates = candidates)
-    
                 prev_total_received = print_on_change("statistics-successful-messages", prev_total_received ,self._dispersy.statistics.success)
                 prev_total_dropped = print_on_change("statistics-dropped-messages", prev_total_dropped ,self._dispersy.statistics.drop)
                 prev_total_delayed = print_on_change("statistics-delayed-messages", prev_total_delayed ,self._dispersy.statistics.delay)
