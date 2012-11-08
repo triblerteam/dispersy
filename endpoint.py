@@ -26,6 +26,7 @@ else:
 
 TUNNEL_PREFIX = "ffffffff".decode("HEX")
 DEBUG = False
+PACKET_DEBUG = True
 
 class Endpoint(object):
     def __init__(self):
@@ -188,6 +189,17 @@ class RawserverEndpoint(Endpoint):
                 self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
                 if DEBUG:
                     print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
+                    
+                if PACKET_DEBUG:
+                    packet_dict = {}
+                    for _, data in self._sendqueue:
+                        try:
+                            name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
+                        except:
+                            name = "???"
+                        packet_dict[name] = packet_dict.get(name, 0) + 1
+                    
+                    self._dispersy.statistics.endpoint_send['still_in_queue'] = packet_dict
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
