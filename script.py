@@ -267,21 +267,21 @@ class ScenarioScriptBase(ScriptBase):
 
     def do_steps(self):
         def print_on_change(name, prev_dict, cur_dict):
-            total = {}
-            didChange = False
+            new_values = {}
+            changed_values = {}
             if cur_dict:
                 for key, value in cur_dict.iteritems():
                     if not isinstance(key, (basestring, int, long)):
                         key = str(key)
                         
                     key = make_valid_key(key)
-                    total[key] = value
+                    new_values[key] = value
                     if prev_dict.get(key, None) != value:
-                        didChange = True
+                        changed_values[key] = value
 
-            if didChange:
-                log("dispersy.log", name, **total)
-                return total
+            if changed_values:
+                log("dispersy.log", name, **changed_values)
+                return new_values
             return prev_dict
         
         self._dispersy._statistics.reset()
