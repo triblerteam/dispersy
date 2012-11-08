@@ -301,7 +301,6 @@ class ScenarioScriptBase(ScriptBase):
         prev_total_fail = {}
         prev_endpoint_recv = {}
         prev_endpoint_send = {}
-        prev_stats_write = 0
 
         # start the scenario
         while True:
@@ -322,54 +321,51 @@ class ScenarioScriptBase(ScriptBase):
             if availability_cmds != -1 and 'stop' in availability_cmds:
                 self.set_offline()
             
-            if prev_stats_write + 5 < time():
-                #print statistics
-                self._dispersy.statistics.update()
-                
-                try:
-                    bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
-                    candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
-                    statistics= {'received_count': self._dispersy.statistics.received_count, 'total_send': self._dispersy.statistics.total_up, 'total_received': self._dispersy.statistics.total_down, 'total_dropped': self._dispersy.statistics.drop_count, 'delay_count': self._dispersy.statistics.delay_count, 'delay_success': self._dispersy.statistics.delay_success, 'delay_timeout': self._dispersy.statistics.delay_timeout, 'walk_attempt': self._dispersy.statistics.walk_attempt, 'walk_success': self._dispersy.statistics.walk_success, 'walk_reset': self._dispersy.statistics.walk_reset, 'conn_type': self._dispersy.statistics.connection_type, 'bl_reuse': bl_reuse, 'candidates': candidates}
-                    prev_statistics = print_on_change("statistics", prev_statistics, statistics)
-                except:
-                    from traceback import print_exc
-                    print_exc()
-                
-                prev_total_received = print_on_change("statistics-successful-messages", prev_total_received ,self._dispersy.statistics.success)
-                prev_total_dropped = print_on_change("statistics-dropped-messages", prev_total_dropped ,self._dispersy.statistics.drop)
-                prev_total_delayed = print_on_change("statistics-delayed-messages", prev_total_delayed ,self._dispersy.statistics.delay)
-                prev_total_outgoing = print_on_change("statistics-outgoing-messages", prev_total_outgoing ,self._dispersy.statistics.outgoing)
-                prev_total_fail = print_on_change("statistics-walk-fail", prev_total_fail ,self._dispersy.statistics.walk_fail)
-                prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
-                prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
-                
-                prev_stats_write = time()
-    
-    #            def callback_cmp(a, b):
-    #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
-    #            keys = self._dispersy.callback._statistics.keys()
-    #            keys.sort(reverse = True)
-    #
-    #            total_run = {}
-    #            for key in keys[:10]:
-    #                total_run[make_valid_key(key)] = self._dispersy.callback._statistics[key]
-    #            if len(total_run) > 0:
-    #                log("dispersy.log", "statistics-callback-run", **total_run)
-    
-    #            stats = Conversion.debug_stats
-    #            total = stats["encode-message"]
-    #            nice_total = {'encoded':stats["-encode-count"], 'total':"%.2fs"%total}
-    #            for key, value in sorted(stats.iteritems()):
-    #                if key.startswith("encode") and not key == "encode-message" and total:
-    #                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
-    #            log("dispersy.log", "statistics-encode", **nice_total)
-    #
-    #            total = stats["decode-message"]
-    #            nice_total = {'decoded':stats["-decode-count"], 'total':"%.2fs"%total}
-    #            for key, value in sorted(stats.iteritems()):
-    #                if key.startswith("decode") and not key == "decode-message" and total:
-    #                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
-    #            log("dispersy.log", "statistics-decode", **nice_total)
+            #print statistics
+            self._dispersy.statistics.update()
+            
+            try:
+                bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
+                candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
+                statistics= {'received_count': self._dispersy.statistics.received_count, 'total_send': self._dispersy.statistics.total_up, 'total_received': self._dispersy.statistics.total_down, 'total_dropped': self._dispersy.statistics.drop_count, 'delay_count': self._dispersy.statistics.delay_count, 'delay_success': self._dispersy.statistics.delay_success, 'delay_timeout': self._dispersy.statistics.delay_timeout, 'walk_attempt': self._dispersy.statistics.walk_attempt, 'walk_success': self._dispersy.statistics.walk_success, 'walk_reset': self._dispersy.statistics.walk_reset, 'conn_type': self._dispersy.statistics.connection_type, 'bl_reuse': bl_reuse, 'candidates': candidates}
+                prev_statistics = print_on_change("statistics", prev_statistics, statistics)
+            except:
+                from traceback import print_exc
+                print_exc()
+            
+            prev_total_received = print_on_change("statistics-successful-messages", prev_total_received ,self._dispersy.statistics.success)
+            prev_total_dropped = print_on_change("statistics-dropped-messages", prev_total_dropped ,self._dispersy.statistics.drop)
+            prev_total_delayed = print_on_change("statistics-delayed-messages", prev_total_delayed ,self._dispersy.statistics.delay)
+            prev_total_outgoing = print_on_change("statistics-outgoing-messages", prev_total_outgoing ,self._dispersy.statistics.outgoing)
+            prev_total_fail = print_on_change("statistics-walk-fail", prev_total_fail ,self._dispersy.statistics.walk_fail)
+            prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
+            prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
+
+#            def callback_cmp(a, b):
+#                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
+#            keys = self._dispersy.callback._statistics.keys()
+#            keys.sort(reverse = True)
+#
+#            total_run = {}
+#            for key in keys[:10]:
+#                total_run[make_valid_key(key)] = self._dispersy.callback._statistics[key]
+#            if len(total_run) > 0:
+#                log("dispersy.log", "statistics-callback-run", **total_run)
+
+#            stats = Conversion.debug_stats
+#            total = stats["encode-message"]
+#            nice_total = {'encoded':stats["-encode-count"], 'total':"%.2fs"%total}
+#            for key, value in sorted(stats.iteritems()):
+#                if key.startswith("encode") and not key == "encode-message" and total:
+#                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
+#            log("dispersy.log", "statistics-encode", **nice_total)
+#
+#            total = stats["decode-message"]
+#            nice_total = {'decoded':stats["-decode-count"], 'total':"%.2fs"%total}
+#            for key, value in sorted(stats.iteritems()):
+#                if key.startswith("decode") and not key == "decode-message" and total:
+#                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
+#            log("dispersy.log", "statistics-decode", **nice_total)
 
             sleep = self.sleep()
             if sleep < 0.5:
