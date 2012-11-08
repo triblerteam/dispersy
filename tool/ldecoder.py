@@ -1,6 +1,7 @@
 from bz2 import BZ2File
 from os import walk
 from os.path import join
+from traceback import print_exc
 
 class NotInterested(Exception):
     pass
@@ -199,7 +200,7 @@ def _decode(offset, stream):
     else:
         raise ValueError("Can not decode {0}".format(stream[offset]))
 
-def _parse(handle, interests):
+def _parse(handle, interests, raise_exceptions = True):
     assert isinstance(interests, set)
     for lineno, stream in zip(_counter(1), handle):
         if stream.startswith("#"):
@@ -228,9 +229,12 @@ def _parse(handle, interests):
 
                 yield lineno, stamp, message, kargs
         except Exception, e:
-            raise ValueError("Cannot read line", str(e), "on line", lineno)
+            if raise_exceptions:
+                raise ValueError("Cannot read line", str(e), "on line", lineno)
+            else:
+                print_exc()
 
-def bz2parse(filename, interests=()):
+def bz2parse(filename, interests=(), raise_exceptions = True):
     """
     Parse the content of bz2 encoded FILENAME.
 
@@ -239,9 +243,9 @@ def bz2parse(filename, interests=()):
     assert isinstance(filename, (str, unicode))
     assert isinstance(interests, (tuple, list, set))
     assert all(isinstance(interest, str) for interest in interests)
-    return _parse(BZ2File(filename, "r"), set(interests))
+    return _parse(BZ2File(filename, "r"), set(interests), raise_exceptions)
 
-def parse(filename, interests=()):
+def parse(filename, interests=(), raise_exceptions = True):
     """
     Parse the content of FILENAME.
 
@@ -251,7 +255,7 @@ def parse(filename, interests=()):
     assert isinstance(filename, (str, unicode))
     assert isinstance(interests, (tuple, list, set))
     assert all(isinstance(interest, str) for interest in interests)
-    return _parse(open(filename, "r"), set(interests))
+    return _parse(open(filename, "r"), set(interests), raise_exceptions)
 
 class NextFile(Exception):
     pass
