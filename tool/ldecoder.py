@@ -2,6 +2,7 @@ from bz2 import BZ2File
 from os import walk
 from os.path import join
 from traceback import print_exc
+import sys
 
 class NotInterested(Exception):
     pass
@@ -206,12 +207,12 @@ def _parse(handle, interests, raise_exceptions = True):
         if stream.startswith("#"):
             continue
 
-        offset = _ignore_seperator(17, stream)
-        if not stream[offset] == "s":
-            raise ValueError("Expected a string encoded message")
-        offset, message = _decode_str(offset+1, stream)
-
         try:
+            offset = _ignore_seperator(17, stream)
+            if not stream[offset] == "s":
+                raise ValueError("Expected a string encoded message")
+            offset, message = _decode_str(offset+1, stream)
+        
             if not interests or message in interests:
                 stamp = float(stream[:17])
                 kargs = {}
@@ -232,6 +233,7 @@ def _parse(handle, interests, raise_exceptions = True):
             if raise_exceptions:
                 raise ValueError("Cannot read line", str(e), "on line", lineno)
             else:
+                print >> sys.stderr, "Cannot read line", str(e), "on line", lineno
                 print_exc()
 
 def bz2parse(filename, interests=(), raise_exceptions = True):
