@@ -2713,7 +2713,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             punctures.append(meta_puncture.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(self._lan_address, self._wan_address, message.payload.identifier)))
             if __debug__: dprint(message.candidate, " asked us to send a puncture to ", candidate)
 
-        self.store_update_forward(punctures, False, False, True)
+        self._forward(punctures)
 
     def check_puncture(self, messages):
         for message in messages:
@@ -2831,12 +2831,19 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # 07/10/11 Boudewijn: we will only commit if it the message was create by our self.
         # Otherwise we can safely skip the commit overhead, since, if a crash occurs, we will be
         # able to regain the data eventually
-        if store and any(message.authentication.member == message.community.my_member for message in messages):
-            if __debug__: dprint("commit user generated message")
-            self._database.commit()
+        if store:
+            my_messages = sum(message.authentication.member == message.community.my_member for message in messages)
             
-        self._statistics.dict_inc(self._statistics.success, messages[0].meta.name, len(messages))
-        self._statistics.success_count += len(messages)
+            if my_messages:
+                if __debug__: dprint("commit user generated message")
+                self._database.commit()
+            
+                self._statistics.created_count += my_messages
+                self._statistics.dict_inc(self._statistics.created, messages[0].meta.name, my_messages)
+        
+        if store or update:
+            self._statistics.dict_inc(self._statistics.success, messages[0].meta.name, len(messages))
+            self._statistics.success_count += len(messages)
 
         if forward:
             if not self._forward(messages):
@@ -2875,26 +2882,21 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         if isinstance(meta.destination, CommunityDestination):
             # CommunityDestination.node_count is allowed to be zero
             if meta.destination.node_count > 0:
-                # note that the statistics is different from the truth when less than NODE_COUNT
-                # candidates can be found
-                self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages) * meta.destination.node_count)
-                return all(self._endpoint.send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message.packet]) for message in messages)
+                return all(self._send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
-            self._statistics.dict_inc(self._statistics.outgoing, meta.name, len(messages))
-            return all(self._endpoint.send(message.destination.candidates, [message.packet]) for message in messages if message.destination.candidates)
+            return all(self._send(message.destination.candidates, [message]) for message in messages if message.destination.candidates)
 
         elif isinstance(meta.destination, MemberDestination):
             # MemberDestination.candidates may be empty
-            # TODO add the _statistics.outgoing information
-            return all(self._endpoint.send([candidate
+            return all(self._send([candidate
                                             for candidate
                                             in self._candidates.itervalues()
                                             if any(candidate.is_associated(message.community, member)
                                                    for member
                                                    in message.destination.members)],
-                                           [message.packet])
+                                           [message])
                        for message
                        in messages)
 
@@ -2902,6 +2904,33 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             raise NotImplementedError(meta.destination)
 
         return False
+    
+    def _send(self, candidates, messages):
+        """
+        Send a list of messages to a list of candidates. If no candidates are specified or endpoint reported
+        a failure this method will return False.
+        
+        @param candidates: A sequence with one or more candidates.
+        @type candidates: [Candidate]
+        
+        @param messages: A sequence with one or more messages.
+        @type messages: [Message.Implementation]
+        """
+        assert isinstance(candidates, (tuple, list, set)), type(candidates)
+        assert all(isinstance(candidate, Candidate) for candidate in candidates)
+        assert isinstance(messages, (tuple, list))
+        assert len(messages) > 0
+        assert all(isinstance(message, Message.Implementation) for message in messages)
+        
+        if len(candidates):
+            packets = []
+            for message in messages:
+                self._statistics.dict_inc(self._statistics.outgoing, message.meta.name, len(candidates))
+                packets.append(message.packet)
+                
+            return self.endpoint.send(candidates, packets)
+        return False
+    
     def declare_malicious_member(self, member, packets):
         """
         Provide one or more signed messages that prove that the creator is malicious.
@@ -4003,7 +4032,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # in this special case we need to forward the message before processing it locally.
         # otherwise the candidate table will have been cleaned and we won't have any destination
         # addresses.
-        self.store_update_forward([message], False, False, forward)
+        self._forward([message])
 
         # now store and update without forwarding.  forwarding now will result in new entries in our
         # candidate table that we just cleane.

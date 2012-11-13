@@ -33,6 +33,7 @@ class DispersyStatistics(Statistics):
         self.delay_success = 0
         self.delay_timeout = 0
         self.success_count = 0
+        self.created_count = 0
         self.received_count = 0
         self.total_down = None
         self.total_up = None
@@ -53,6 +54,7 @@ class DispersyStatistics(Statistics):
                 self.delay = {}
                 self.success = {}
                 self.outgoing = {}
+                self.created = {}
                 self.walk_fail = {}
                 self.attachment = {}
                 self.database = {}
@@ -62,6 +64,7 @@ class DispersyStatistics(Statistics):
                 self.drop = None
                 self.delay = None
                 self.success = None
+                self.created = None
                 self.outgoing = None
                 self.walk_fail = None
                 self.attachment = None
@@ -91,6 +94,7 @@ class DispersyStatistics(Statistics):
         self.delay_success = 0
         self.delay_timeout = 0
         self.received_count = 0
+        self.created_count = 0
 
         self._dispersy.endpoint.reset_statistics()
         self.total_down = self._dispersy.endpoint.total_down
@@ -108,6 +112,7 @@ class DispersyStatistics(Statistics):
             self.delay = {}
             self.success = {}
             self.outgoing = {}
+            self.created = {}
             self.walk_fail = {}
             self.attachment = {}
             self.endpoint_recv = {}

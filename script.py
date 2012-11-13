@@ -301,6 +301,7 @@ class ScenarioScriptBase(ScriptBase):
         prev_total_fail = {}
         prev_endpoint_recv = {}
         prev_endpoint_send = {}
+        prev_created_messages = {}
 
         # start the scenario
         while True:
@@ -336,6 +337,7 @@ class ScenarioScriptBase(ScriptBase):
             prev_total_fail = print_on_change("statistics-walk-fail", prev_total_fail ,self._dispersy.statistics.walk_fail)
             prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
             prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
+            prev_created_messages = print_on_change("statistics-created-messages", prev_created_messages ,self._dispersy.statistics.created)
 
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
