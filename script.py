@@ -302,6 +302,7 @@ class ScenarioScriptBase(ScriptBase):
         prev_endpoint_recv = {}
         prev_endpoint_send = {}
         prev_created_messages = {}
+        prev_bootstrap_candidates = {}
 
         # start the scenario
         while True:
@@ -338,6 +339,7 @@ class ScenarioScriptBase(ScriptBase):
             prev_endpoint_recv = print_on_change("statistics-endpoint-recv", prev_endpoint_recv ,self._dispersy.statistics.endpoint_recv)
             prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
             prev_created_messages = print_on_change("statistics-created-messages", prev_created_messages ,self._dispersy.statistics.created)
+            prev_bootstrap_candidates = print_on_change("statistics-bootstrap-candidates", prev_bootstrap_candidates ,self._dispersy.statistics.bootstrap_candidates)
 
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])

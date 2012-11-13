@@ -2662,6 +2662,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if __debug__: dprint("received introduction to ", candidate)
 
                 cache.response_candidate = candidate
+                
+                # TEMP: see which peers we get returned by the trackers
+                if self._statistics.bootstrap_candidates != None and isinstance(message.candidate, BootstrapCandidate):
+                    self._statistics.bootstrap_candidates[candidate.sock_addr] = self._statistics.bootstrap_candidates.get(candidate.sock_addr, 0) + 1
+                    
+            elif self._statistics.bootstrap_candidates != None and isinstance(message.candidate, BootstrapCandidate):
+                    self._statistics.bootstrap_candidates["none"] = self._statistics.bootstrap_candidates.get("none", 0) + 1 
 
     def check_puncture_request(self, messages):
         for message in messages:

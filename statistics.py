@@ -60,6 +60,7 @@ class DispersyStatistics(Statistics):
                 self.database = {}
                 self.endpoint_recv = {}
                 self.endpoint_send = {}
+                self.bootstrap_candidates = {}
             else:
                 self.drop = None
                 self.delay = None
@@ -71,6 +72,7 @@ class DispersyStatistics(Statistics):
                 self.database = None
                 self.endpoint_recv = None
                 self.endpoint_send = None
+                self.bootstrap_candidates = None
                 
     def are_debug_statistics_enabled(self):
         return getattr(self, 'drop', None) != None
@@ -117,6 +119,7 @@ class DispersyStatistics(Statistics):
             self.attachment = {}
             self.endpoint_recv = {}
             self.endpoint_send = {}
+            self.bootstrap_candidates = {}
 
 class CommunityStatistics(Statistics):
     def __init__(self, community):
