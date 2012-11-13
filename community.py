@@ -1459,4 +1459,5 @@ class HardKilledCommunity(Community):
         return self._conversions[prefix]
 
     def dispersy_on_introduction_request(self, messages):
+        self._dispersy._statistics.dict_inc(self._statistics.outgoing, u"-destroy-community")
         self._dispersy.endpoint.send([message.candidate for message in messages], [self._destroy_community_packet])

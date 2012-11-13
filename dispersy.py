@@ -3060,6 +3060,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             payload = message.payload
             packets = [str(packet) for packet, in list(self._database.execute(u"SELECT packet FROM sync WHERE community = ? AND member = ? AND meta_message = ? ORDER BY global_time DESC LIMIT ?",
                                                                               (message.community.database_id, payload.member.database_id, payload.message.database_id, payload.count)))]
+            self._statistics.dict_inc(self._statistics.outgoing, u"-missing-last-message", len(packets))
             self._endpoint.send([message.candidate], packets)
 
     def is_valid_address(self, address):
