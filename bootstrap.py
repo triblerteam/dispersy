@@ -26,6 +26,8 @@ _trackers = [(u"dispersy1.tribler.org", 6421),
              (u"dispersy8b.tribler.org", 6428)]
 
 # _trackers = [(u"kayapo.tribler.org", 6431)]
+_trackers = [(u"dispersy1.tribler.org", 6421),
+             (u"dispersy2.tribler.org", 6422)]
 
 def get_bootstrap_hosts(working_directory):
     """
