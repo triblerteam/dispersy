@@ -248,10 +248,7 @@ class ScenarioScriptBase(ScriptBase):
         self._community = self.join_community(my_member)
         dprint("Joined community ", self._community._my_member)
 
-        log(self._logfile, "joined-community", name="time", value=time())
-        log(self._logfile, "community-property", name="timestep", value=self._timestep)
-        log(self._logfile, "community-property", name="sync_response_limit", value=self._community.dispersy_sync_response_limit)
-        log(self._logfile, "community-property", name="starting_timestamp", value=self._starting_timestamp)
+        log("dispersy.log", "joined-community", time = time(), timestep = self._timestep, sync_response_limit = self._community.dispersy_sync_response_limit, starting_timestamp = self._starting_timestamp)
 
         self._stepcount = 0
 
