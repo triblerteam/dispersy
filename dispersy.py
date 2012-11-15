@@ -1079,7 +1079,9 @@ class Dispersy(Singleton):
                 signature_length = message.authentication.member.signature_length
                 if have_packet[:signature_length] == message.packet[:signature_length]:
                     # the message payload is binary unique (only the signature is different)
-                    if __debug__: dprint(message.candidate, " received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, seq, "]", level="warning")
+                    if __debug__:
+                        seq = " #%d" % message.distribution.sequence_number
+                        dprint(message.candidate, " received identical message with different signature [member:", message.authentication.member.database_id, "; @", message.distribution.global_time, seq, "]", level="warning")
 
                     if have_packet < message.packet:
                         # replace our current message with the other one
