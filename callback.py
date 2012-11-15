@@ -10,6 +10,7 @@ from thread import get_ident
 from threading import Thread, Lock, Event, currentThread
 from time import sleep, time
 from types import GeneratorType, TupleType
+from sys import exc_info
 
 try:
     import prctl
@@ -61,6 +62,7 @@ class Callback(object):
         # any of the registered callbacks raises any of these exceptions.  in this case _state will
         # be set to STATE_EXCEPTION.  it is protected by _lock
         self._exception = None
+        self._exception_traceback = None
 
         # _exception_handlers contains a list with callable functions of methods.  all handlers are
         # called whenever an exception occurs.  first parameter is the exception, second parameter
@@ -128,6 +130,13 @@ class Callback(object):
         raises either SystemExit, KeyboardInterrupt, GeneratorExit, or AssertionError.
         """
         return self._exception
+    
+    @property
+    def exception_traceback(self):
+        """
+        Returns the traceback of the exception that caused the thread to exit when when any of the registered callbacks
+        """
+        return self._exception_traceback
 
     def attach_exception_handler(self, func):
         """
@@ -471,6 +480,8 @@ class Callback(object):
             with self._lock:
                 if exception:
                     self._exception = exception
+                    self._exception_traceback = exc_info()[2]
+                    
                 self._state = "STATE_PLEASE_STOP"
                 if __debug__: dprint("STATE_PLEASE_STOP")
 
@@ -623,6 +634,7 @@ class Callback(object):
                     with lock:
                         self._state = "STATE_EXCEPTION"
                         self._exception = exception
+                        self._exception_traceback = exc_info()[2]
                     self._call_exception_handlers(exception, True)
 
                 except Exception, exception:
@@ -634,6 +646,7 @@ class Callback(object):
                         with lock:
                             self._state = "STATE_EXCEPTION"
                             self._exception = exception
+                            self._exception_traceback = exc_info()[2]
                         self._call_exception_handlers(exception, True)
                     else:
                         dprint(exception=True, level="error")
