@@ -202,9 +202,6 @@ def _decode(offset, stream):
         raise ValueError("Can not decode {0}".format(stream[offset]))
 
 def _parse(handle, interests, raise_exceptions = True):
-    print >> sys.stderr, "hallo"
-    print >> sys.stderr, handle
-    
     assert isinstance(interests, set)
     for lineno, stream in zip(_counter(1), handle):
         if stream.startswith("#"):
