@@ -204,7 +204,6 @@ def _decode(offset, stream):
 def _parse(handle, interests, raise_exceptions = True):
     assert isinstance(interests, set)
     for lineno, stream in zip(_counter(1), handle):
-        print >> sys.stderr, stream
         if stream.startswith("#"):
             continue
 
@@ -281,6 +280,7 @@ def parselast(filename, interests = (), raise_exceptions = True, chars = 2048):
     #skip broken line
     f.readline()
     lines = f.readlines()
+    print >> sys.stderr, lines
     return _parse(lines, set(interests), raise_exceptions)
 
 class NextFile(Exception):
