@@ -281,9 +281,9 @@ def parselast(filename, interests = (), raise_exceptions = True, chars = 2048):
     f.readline()
     
     lines = f.readlines()
-    #lines.reverse()
-    print "hallo"
-    print lines
+    lines.reverse()
+    print >> sys.stderr, "hallo"
+    print >> sys.stderr, lines
     return _parse(lines, set(interests), raise_exceptions)
 
 class NextFile(Exception):
