@@ -274,13 +274,14 @@ def parselast(filename, interests = (), raise_exceptions = True, chars = 2048):
     
     #From http://stackoverflow.com/a/260352
     f = open(filename, "r")
-    f.seek (0, 2)           # Seek @ EOF
+    f.seek(0, 2)           # Seek @ EOF
     fsize = f.tell()        # Get Size
-    f.seek (max (fsize-chars, 0), 0) # Set pos @ last n chars
+    f.seek(max (fsize-chars, 0), 0) # Set pos @ last n chars
     
     #skip broken line
     f.readline()
-    return _parse(f, set(interests), raise_exceptions)
+    lines = f.readlines()
+    return _parse(lines, set(interests), raise_exceptions)
 
 class NextFile(Exception):
     pass
