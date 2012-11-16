@@ -259,6 +259,28 @@ def parse(filename, interests=(), raise_exceptions = True):
     assert all(isinstance(interest, str) for interest in interests)
     return _parse(open(filename, "r"), set(interests), raise_exceptions)
 
+def parselast(filename, interests = (), raise_exceptions = True, chars = 2048):
+    """
+    Parse the last X chars from the content of FILENAME.
+
+    Yields a (LINENO, TIMESTAMP, MESSAGE, KARGS) tuple for each line in
+    the file.
+    """
+    assert isinstance(filename, (str, unicode))
+    assert isinstance(interests, (tuple, list, set))
+    assert all(isinstance(interest, str) for interest in interests)
+    return _parse(open(filename, "r"), set(interests), raise_exceptions)
+    
+    #From http://stackoverflow.com/a/260352
+    f = open(filename, "r")
+    f.seek (0, 2)           # Seek @ EOF
+    fsize = f.tell()        # Get Size
+    f.seek (max (fsize-chars, 0), 0) # Set pos @ last n chars
+    
+    #skip broken line
+    f.readline()
+    return _parse(f, set(interests), raise_exceptions)
+
 class NextFile(Exception):
     pass
 
