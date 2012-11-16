@@ -272,7 +272,6 @@ def parselast(filename, interests = (), raise_exceptions = True, chars = 2048):
     assert isinstance(filename, (str, unicode))
     assert isinstance(interests, (tuple, list, set))
     assert all(isinstance(interest, str) for interest in interests)
-    return _parse(open(filename, "r"), set(interests), raise_exceptions)
     
     #From http://stackoverflow.com/a/260352
     f = open(filename, "r")
