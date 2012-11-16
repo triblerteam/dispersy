@@ -254,6 +254,7 @@ class ScenarioScriptBase(ScriptBase):
 
         # wait until we reach the starting time
         self._dispersy.callback.register(self.do_steps, delay=self.sleep())
+        self._dispersy.callback.register(self.do_log)
 
         # I finished the scenario execution. I should stay online
         # until killed. Note that I can still sync and exchange
@@ -263,24 +264,6 @@ class ScenarioScriptBase(ScriptBase):
             yield 100.0
 
     def do_steps(self):
-        def print_on_change(name, prev_dict, cur_dict):
-            new_values = {}
-            changed_values = {}
-            if cur_dict:
-                for key, value in cur_dict.iteritems():
-                    if not isinstance(key, (basestring, int, long)):
-                        key = str(key)
-                        
-                    key = make_valid_key(key)
-                    new_values[key] = value
-                    if prev_dict.get(key, None) != value:
-                        changed_values[key] = value
-
-            if changed_values:
-                log("dispersy.log", name, **changed_values)
-                return new_values
-            return prev_dict
-        
         self._dispersy._statistics.reset()
         scenario_fp = open('data/bartercast.log')
         try:
@@ -289,17 +272,6 @@ class ScenarioScriptBase(ScriptBase):
             availability_fp = None
 
         self._stepcount += 1
-        
-        prev_statistics = {}
-        prev_total_received = {}
-        prev_total_dropped = {}
-        prev_total_delayed = {}
-        prev_total_outgoing = {}
-        prev_total_fail = {}
-        prev_endpoint_recv = {}
-        prev_endpoint_send = {}
-        prev_created_messages = {}
-        prev_bootstrap_candidates = {}
 
         # start the scenario
         while True:
@@ -319,13 +291,50 @@ class ScenarioScriptBase(ScriptBase):
             # if there is a stop in the availability_cmds then go offline
             if availability_cmds != -1 and 'stop' in availability_cmds:
                 self.set_offline()
+
+            sleep = self.sleep()
+            if sleep < 0.5:
+                self.log_desync(1.0 - sleep)
+            yield sleep
+            self._stepcount += 1
             
+    def do_log(self):
+        def print_on_change(name, prev_dict, cur_dict):
+            new_values = {}
+            changed_values = {}
+            if cur_dict:
+                for key, value in cur_dict.iteritems():
+                    if not isinstance(key, (basestring, int, long)):
+                        key = str(key)
+                        
+                    key = make_valid_key(key)
+                    new_values[key] = value
+                    if prev_dict.get(key, None) != value:
+                        changed_values[key] = value
+
+            if changed_values:
+                log("dispersy.log", name, **changed_values)
+                return new_values
+            return prev_dict
+        
+        prev_statistics = {}
+        prev_total_received = {}
+        prev_total_dropped = {}
+        prev_total_delayed = {}
+        prev_total_outgoing = {}
+        prev_total_fail = {}
+        prev_endpoint_recv = {}
+        prev_endpoint_send = {}
+        prev_created_messages = {}
+        prev_bootstrap_candidates = {}
+        
+        while True:
             #print statistics
             self._dispersy.statistics.update()
             
             bl_reuse = sum(c.sync_bloom_reuse for c in self._dispersy.statistics.communities)
             candidates = [(c.classification, len(c.candidates) if c.candidates else 0) for c in self._dispersy.statistics.communities]
-            statistics_dict= {'received_count': self._dispersy.statistics.received_count, 'total_send': self._dispersy.statistics.total_up, 'total_received': self._dispersy.statistics.total_down, 'total_dropped': self._dispersy.statistics.drop_count, 'delay_count': self._dispersy.statistics.delay_count, 'delay_success': self._dispersy.statistics.delay_success, 'delay_timeout': self._dispersy.statistics.delay_timeout, 'walk_attempt': self._dispersy.statistics.walk_attempt, 'walk_success': self._dispersy.statistics.walk_success, 'walk_reset': self._dispersy.statistics.walk_reset, 'conn_type': self._dispersy.statistics.connection_type, 'bl_reuse': bl_reuse, 'candidates': candidates}
+            statistics_dict= {'received_count': self._dispersy.statistics.received_count, 'total_send': self._dispersy.statistics.total_up, 'total_received': self._dispersy.statistics.total_down, 'total_dropped': self._dispersy.statistics.drop_count, 'total_send': self._dispersy.statistics.total_send, 'cur_sendqueue': self._dispersy.statistics.cur_sendqueue, 'delay_count': self._dispersy.statistics.delay_count, 'delay_success': self._dispersy.statistics.delay_success, 'delay_timeout': self._dispersy.statistics.delay_timeout, 'walk_attempt': self._dispersy.statistics.walk_attempt, 'walk_success': self._dispersy.statistics.walk_success, 'walk_reset': self._dispersy.statistics.walk_reset, 'conn_type': self._dispersy.statistics.connection_type, 'bl_reuse': bl_reuse, 'candidates': candidates}
             
             prev_statistics = print_on_change("statistics", prev_statistics, statistics_dict)
             prev_total_received = print_on_change("statistics-successful-messages", prev_total_received ,self._dispersy.statistics.success)
@@ -337,7 +346,7 @@ class ScenarioScriptBase(ScriptBase):
             prev_endpoint_send = print_on_change("statistics-endpoint-send", prev_endpoint_send ,self._dispersy.statistics.endpoint_send)
             prev_created_messages = print_on_change("statistics-created-messages", prev_created_messages ,self._dispersy.statistics.created)
             prev_bootstrap_candidates = print_on_change("statistics-bootstrap-candidates", prev_bootstrap_candidates ,self._dispersy.statistics.bootstrap_candidates)
-
+            
 #            def callback_cmp(a, b):
 #                return cmp(self._dispersy.callback._statistics[a][0], self._dispersy.callback._statistics[b][0])
 #            keys = self._dispersy.callback._statistics.keys()
@@ -363,12 +372,8 @@ class ScenarioScriptBase(ScriptBase):
 #                if key.startswith("decode") and not key == "decode-message" and total:
 #                    nice_total[make_valid_key(key)] = "%7.2fs ~%5.1f%%" % (value, 100.0 * value / total)
 #            log("dispersy.log", "statistics-decode", **nice_total)
-
-            sleep = self.sleep()
-            if sleep < 0.5:
-                self.log_desync(1.0 - sleep)
-            yield sleep
-            self._stepcount += 1
+            
+            yield 1.0
 
 class DispersyClassificationScript(ScriptBase):
     def run(self):

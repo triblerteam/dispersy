@@ -1883,16 +1883,22 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         # store to disk and update locally
         if __debug__:
             dprint("in... ", len(messages), " ", meta.name, " messages from ", ", ".join(str(candidate) for candidate in set(message.candidate for message in messages)))
-        self.store_update_forward(messages, True, True, False)
+        
+        if self.store_update_forward(messages, True, True, False):
+            
+            self._statistics.dict_inc(self._statistics.success, meta.name, len(messages))
+            self._statistics.success_count += len(messages)
 
-        # tell what happened
-        if __debug__:
-            debug_end = time()
-            level = "warning" if (debug_end - debug_begin) > 1.0 else "normal"
-            dprint("handled ", len(messages), "/", debug_count, " %.2fs" % (debug_end - debug_begin), " ", meta.name, " messages (with ", meta.batch.max_window, "s cache window)", level=level)
-
-        # return the number of messages that were correctly handled (non delay, duplictes, etc)
-        return len(messages)
+            # tell what happened
+            if __debug__:
+                debug_end = time()
+                level = "warning" if (debug_end - debug_begin) > 1.0 else "normal"
+                dprint("handled ", len(messages), "/", debug_count, " %.2fs" % (debug_end - debug_begin), " ", meta.name, " messages (with ", meta.batch.max_window, "s cache window)", level=level)
+    
+            # return the number of messages that were correctly handled (non delay, duplictes, etc)
+            return len(messages)
+        
+        return 0
 
     def _convert_packets_into_batch(self, packets):
         """
@@ -2850,21 +2856,15 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         # able to regain the data eventually
         if store:
             my_messages = sum(message.authentication.member == message.community.my_member for message in messages)
-            
             if my_messages:
                 if __debug__: dprint("commit user generated message")
                 self._database.commit()
             
                 self._statistics.created_count += my_messages
                 self._statistics.dict_inc(self._statistics.created, messages[0].meta.name, my_messages)
-        
-        if store or update:
-            self._statistics.dict_inc(self._statistics.success, messages[0].meta.name, len(messages))
-            self._statistics.success_count += len(messages)
 
         if forward:
-            if not self._forward(messages):
-                return False
+            return self._forward(messages)
 
         return True
 

@@ -30,6 +30,8 @@ class Endpoint(object):
     def __init__(self):
         self._total_up = 0
         self._total_down = 0
+        self._total_send = 0
+        self._cur_sendqueue = 0
 
     @property
     def total_up(self):
@@ -38,10 +40,19 @@ class Endpoint(object):
     @property
     def total_down(self):
         return self._total_down
+    
+    @property
+    def total_send(self):
+        return self._total_send
+    
+    @property
+    def cur_sendqueue(self):
+        return self._cur_sendqueue
 
     def reset_statistics(self):
         self._total_up = 0
         self._total_down = 0
+        self._total_send = 0
 
     def get_address(self):
         raise NotImplementedError()
@@ -130,6 +141,8 @@ class RawserverEndpoint(Endpoint):
         assert all(len(packet) > 0 for packet in packets)
 
         self._total_up += sum(len(data) for data in packets) * len(candidates)
+        self._total_send += (len(packets) * len(candidates))
+        
         wan_address = self._dispersy.wan_address
 
         with self._sendqueue_lock:
@@ -155,11 +168,12 @@ class RawserverEndpoint(Endpoint):
             assert self._sendqueue
             
             index = 0
-            NUM_PACKETS = max(50, len(self._sendqueue) / 10)
+            NUM_PACKETS = min(max(50, len(self._sendqueue) / 10), len(self._sendqueue))
             if DEBUG:
                 print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
             
-            for sock_addr, data in self._sendqueue[:NUM_PACKETS]:
+            for i in xrange(NUM_PACKETS):
+                sock_addr, data = self._sendqueue[i]
                 try:
                     self._socket.sendto(data, sock_addr)
                     if DEBUG:
@@ -187,6 +201,8 @@ class RawserverEndpoint(Endpoint):
                 self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
                 if DEBUG:
                     print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
+            
+            self._cur_sendqueue = len(self._sendqueue)
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
@@ -281,6 +297,7 @@ class TunnelEndpoint(Endpoint):
         assert all(len(packet) > 0 for packet in packets)
 
         self._total_up += sum(len(data) for data in packets) * len(candidates)
+        self._total_send += (len(packets) * len(candidates)) 
         wan_address = self._dispersy.wan_address
 
         self._swift.splock.acquire()
