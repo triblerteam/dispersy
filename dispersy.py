@@ -2312,10 +2312,6 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
     def create_introduction_request(self, community, destination, allow_sync, forward=True):
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
-
-        self._statistics.walk_attempt += 1
-        if isinstance(destination, BootstrapCandidate):
-            self._statistics.walk_bootstrap_attempt += 1
         
         cache = IntroductionRequestCache(community, destination)
         destination.walk(community, time(), cache.timeout_delay)
@@ -2398,8 +2394,15 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
             else:
                 dprint(community.cid.encode("HEX"), " sending introduction request to ", destination)
+                
         if forward:
-            self._forward([request])
+            self._statistics.walk_attempt += 1
+            if isinstance(destination, BootstrapCandidate):
+                self._statistics.walk_bootstrap_attempt += 1
+                
+            if not self._forward([request]):
+                self._statistics.walk_reset += 1
+            
         return request
 
     def check_introduction_request(self, messages):
@@ -2919,7 +2922,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         else:
             raise NotImplementedError(meta.destination)
-
         return False
     
     def _send(self, candidates, messages):

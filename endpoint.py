@@ -53,6 +53,7 @@ class Endpoint(object):
         self._total_up = 0
         self._total_down = 0
         self._total_send = 0
+        self._cur_sendqueue = 0
 
     def get_address(self):
         raise NotImplementedError()

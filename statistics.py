@@ -57,10 +57,10 @@ class DispersyStatistics(Statistics):
         self.cur_sendqueue = 0
         
         self.walk_attempt = 0
-        self.walk_reset = 0
         self.walk_success = 0
         self.walk_bootstrap_attempt = 0
         self.walk_bootstrap_success = 0
+        self.walk_reset = 0
         
         self.wan_address = None
         self.update()
