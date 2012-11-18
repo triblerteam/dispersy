@@ -2391,9 +2391,9 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         if __debug__:
             if sync:
                 time_low, time_high, modulo, offset, _ = sync
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset, force = 1)
+                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
             else:
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, force = 1)
+                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination)
                 
         if forward:
             self._statistics.walk_attempt += 1
@@ -2402,6 +2402,8 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 
             if not self._forward([request]):
                 self._statistics.walk_reset += 1
+                import sys
+                print >> sys.stderr, community.cid.encode("HEX"), "sending introduction request to", destination,"failed"
             
         return request
 
