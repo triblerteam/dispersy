@@ -2935,7 +2935,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 print >> sys.stderr, "commdest"
             elif isinstance(meta.destination, CandidateDestination):
                 print >> sys.stderr, "canddest", messages[0].destination.candidates
-                print >> sys.stderr, all(self._send(message.destination.candidates, [message], True) for message in messages), self._send(messages[0].destination.candidates, messages, True)
+                print >> sys.stderr, all(self._send(message.destination.candidates, [message], True) for message in messages), self._send(messages[0].destination.candidates, messages, True), type(self._send)
             elif isinstance(meta.destination, MemberDestination):
                 print >> sys.stderr, "memberdest"
         
@@ -2957,6 +2957,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         assert isinstance(messages, (tuple, list))
         assert len(messages) > 0
         assert all(isinstance(message, Message.Implementation) for message in messages)
+        
+        if debug:
+            print >> sys.stderr, "in _send", candidates, messages
         
         result = False
         
