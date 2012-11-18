@@ -2934,7 +2934,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             if isinstance(meta.destination, CommunityDestination):
                 print >> sys.stderr, "commdest"
             elif isinstance(meta.destination, CandidateDestination):
-                print >> sys.stderr, "canddest"
+                print >> sys.stderr, "canddest", messages[0].destination.candidates
+                print >> sys.stderr, all(self._send(message.destination.candidates, [message]) for message in messages)
             elif isinstance(meta.destination, MemberDestination):
                 print >> sys.stderr, "memberdest"
         
