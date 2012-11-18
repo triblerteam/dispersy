@@ -172,7 +172,7 @@ class ScenarioScriptBase(ScriptBase):
         
         log(self._logfile, "Going offline")
         self._dispersy.on_socket_endpoint = dummy_on_socket
-        self._dispersy._send = dummy_send
+        self._dispersy.endpoint.send = dummy_send
 
     def get_commands_from_fp(self, fp, step):
         """ Return a list of commands from file handle for step
