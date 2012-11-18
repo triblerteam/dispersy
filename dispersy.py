@@ -2969,12 +2969,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             result = self.endpoint.send(candidates, packets)
         
         import sys
-        if not result:
-            print >> sys.stderr, "_send failed", candidates, messages
+        if result:
+            if debug:
+                print >> sys.stderr, "_send success", candidates, messages
+        else:
+            print >> sys.stderr, "_send failed", candidates, messages, type(self.endpoint)
             for message in messages:
                 print >> sys.stderr, message.meta.name
-        elif debug:
-            print >> sys.stderr, "_send success", candidates, messages
             
         return result
     
