@@ -165,11 +165,14 @@ class ScenarioScriptBase(ScriptBase):
         This simulates a node going offline, since it's not able to
         send or receive any messages
         """
-        def dummy_function(*params):
+        def dummy_on_socket(*params):
             return
+        def dummy_send(*params):
+            return False
+        
         log(self._logfile, "Going offline")
-        self._dispersy.on_socket_endpoint = dummy_function
-        self._dispersy._send = dummy_function
+        self._dispersy.on_socket_endpoint = dummy_on_socket
+        self._dispersy._send = dummy_send
 
     def get_commands_from_fp(self, fp, step):
         """ Return a list of commands from file handle for step

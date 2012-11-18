@@ -2400,10 +2400,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             if isinstance(destination, BootstrapCandidate):
                 self._statistics.walk_bootstrap_attempt += 1
                 
-            if not self._forward([request]):
-                self._statistics.walk_reset += 1
-                import sys
-                print >> sys.stderr, community.cid.encode("HEX"), "sending introduction request to", destination, "failed", request.destination.candidates
+            self._forward([request])
             
         return request
 
@@ -2901,7 +2898,6 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         assert all(message.meta == messages[0].meta for message in messages)
 
         result = False
-
         meta = messages[0].meta
         if isinstance(meta.destination, CommunityDestination):
             # CommunityDestination.node_count is allowed to be zero
@@ -2929,16 +2925,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         
         if not result:
             import sys
-            print >> sys.stderr, "_forward failed", meta.name, messages
-            
-            if isinstance(meta.destination, CommunityDestination):
-                print >> sys.stderr, "commdest"
-            elif isinstance(meta.destination, CandidateDestination):
-                print >> sys.stderr, "canddest", messages[0].destination.candidates
-                print >> sys.stderr, all(self._send(message.destination.candidates, [message], True) for message in messages), self._send(messages[0].destination.candidates, messages, True), type(self._send)
-            elif isinstance(meta.destination, MemberDestination):
-                print >> sys.stderr, "memberdest"
-        
+            print >> sys.stderr, long(time()), "_forward failed", meta.name, type(meta.destination), messages
         return result
     
     def _send(self, candidates, messages, debug = False):
@@ -2958,29 +2945,14 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         assert len(messages) > 0
         assert all(isinstance(message, Message.Implementation) for message in messages)
         
-        if debug:
-            print >> sys.stderr, "in _send", candidates, messages
-        
-        result = False
-        
         if len(candidates) and len(messages):
             packets = []
             for message in messages:
                 self._statistics.dict_inc(self._statistics.outgoing, message.meta.name, len(candidates))
                 packets.append(message.packet)
                 
-            result = self.endpoint.send(candidates, packets)
-        
-        import sys
-        if result:
-            if debug:
-                print >> sys.stderr, "_send success", candidates, messages
-        else:
-            print >> sys.stderr, "_send failed", candidates, messages, type(self.endpoint)
-            for message in messages:
-                print >> sys.stderr, message.meta.name
-            
-        return result
+            return self.endpoint.send(candidates, packets)
+        return False
     
     def declare_malicious_member(self, member, packets):
         """
