@@ -2935,13 +2935,13 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 print >> sys.stderr, "commdest"
             elif isinstance(meta.destination, CandidateDestination):
                 print >> sys.stderr, "canddest", messages[0].destination.candidates
-                print >> sys.stderr, all(self._send(message.destination.candidates, [message]) for message in messages)
+                print >> sys.stderr, all(self._send(message.destination.candidates, [message], True) for message in messages)
             elif isinstance(meta.destination, MemberDestination):
                 print >> sys.stderr, "memberdest"
         
         return result
     
-    def _send(self, candidates, messages):
+    def _send(self, candidates, messages, debug = False):
         """
         Send a list of messages to a list of candidates. If no candidates are specified or endpoint reported
         a failure this method will return False.
@@ -2973,7 +2973,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             print >> sys.stderr, "_send failed", candidates, messages
             for message in messages:
                 print >> sys.stderr, message.meta.name
-        else:
+        elif debug:
             print >> sys.stderr, "_send success", candidates, messages
             
         return result
