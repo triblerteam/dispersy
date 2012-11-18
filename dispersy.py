@@ -2391,9 +2391,9 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         if __debug__:
             if sync:
                 time_low, time_high, modulo, offset, _ = sync
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
+                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset, force = 1)
             else:
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination)
+                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, force = 1)
                 
         if forward:
             self._statistics.walk_attempt += 1
@@ -2906,7 +2906,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
-            return all(self._send(message.destination.candidates, [message]) for message in messages if message.destination.candidates)
+            return all(self._send(message.destination.candidates, [message]) for message in messages)
 
         elif isinstance(meta.destination, MemberDestination):
             # MemberDestination.candidates may be empty
