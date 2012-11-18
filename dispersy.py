@@ -2900,19 +2900,21 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         assert all(message.community == messages[0].community for message in messages)
         assert all(message.meta == messages[0].meta for message in messages)
 
+        result = False
+
         meta = messages[0].meta
         if isinstance(meta.destination, CommunityDestination):
             # CommunityDestination.node_count is allowed to be zero
             if meta.destination.node_count > 0:
-                return all(self._send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message]) for message in messages)
+                result = all(self._send(list(islice(meta.community.dispersy_yield_random_candidates(), meta.destination.node_count)), [message]) for message in messages)
 
         elif isinstance(meta.destination, CandidateDestination):
             # CandidateDestination.candidates may be empty
-            return all(self._send(message.destination.candidates, [message]) for message in messages)
+            result = all(self._send(message.destination.candidates, [message]) for message in messages)
 
         elif isinstance(meta.destination, MemberDestination):
             # MemberDestination.candidates may be empty
-            return all(self._send([candidate
+            result = all(self._send([candidate
                                             for candidate
                                             in self._candidates.itervalues()
                                             if any(candidate.is_associated(message.community, member)
@@ -2924,7 +2926,19 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
         else:
             raise NotImplementedError(meta.destination)
-        return False
+        
+        if not result:
+            import sys
+            print >> sys.stderr, "_forward failed", meta.name, messages
+            
+            if isinstance(meta.destination, CommunityDestination):
+                print >> sys.stderr, "commdest"
+            elif isinstance(meta.destination, CandidateDestination):
+                print >> sys.stderr, "canddest"
+            elif isinstance(meta.destination, MemberDestination):
+                print >> sys.stderr, "memberdest"
+        
+        return result
     
     def _send(self, candidates, messages):
         """
