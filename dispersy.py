@@ -2945,16 +2945,15 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         
         import sys
         
-        if len(candidates):
+        if len(candidates) and len(messages):
             packets = []
             for message in messages:
-                print >> sys.stderr, "sending message:", message.meta.name
                 self._statistics.dict_inc(self._statistics.outgoing, message.meta.name, len(candidates))
                 packets.append(message.packet)
                 
             return self.endpoint.send(candidates, packets)
         else:
-            print >> sys.stderr, "no candidates", candidates
+            print >> sys.stderr, "no", candidates, messages
             for message in messages:
                 print >> sys.stderr, message.meta.name
             
