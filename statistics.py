@@ -98,15 +98,17 @@ class DispersyStatistics(Statistics):
         return getattr(self, 'drop', None) != None
 
     def update(self, database=False):
-        self.communities = [community.statistics for community in self._dispersy.get_communities()]
+        self.timestamp = time()
         self.connection_type = self._dispersy.connection_type
         self.lan_address = self._dispersy.lan_address
-        self.timestamp = time()
+        self.wan_address = self._dispersy.wan_address
+        
         self.total_down = self._dispersy.endpoint.total_down
         self.total_up = self._dispersy.endpoint.total_up
         self.total_send = self._dispersy.endpoint.total_send
         self.cur_sendqueue = self._dispersy.endpoint.cur_sendqueue
-        self.wan_address = self._dispersy.wan_address
+        
+        self.communities = [community.statistics for community in self._dispersy.get_communities()]
         for community in self.communities:
             community.update(database=database)
 
@@ -141,6 +143,7 @@ class DispersyStatistics(Statistics):
             self.created = {}
             self.walk_fail = {}
             self.attachment = {}
+            self.database = {}
             self.endpoint_recv = {}
             self.endpoint_send = {}
             self.bootstrap_candidates = {}

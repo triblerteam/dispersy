@@ -2403,7 +2403,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             if not self._forward([request]):
                 self._statistics.walk_reset += 1
                 import sys
-                print >> sys.stderr, community.cid.encode("HEX"), "sending introduction request to", destination,"failed"
+                print >> sys.stderr, community.cid.encode("HEX"), "sending introduction request to", destination, "failed", request.destination.candidates
             
         return request
 

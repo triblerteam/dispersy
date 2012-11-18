@@ -407,6 +407,12 @@ class BootstrapCandidate(WalkCandidate):
         timestamps = self._timestamps[community.cid]
         return now >= timestamps.last_walk + CANDIDATE_ELIGIBLE_BOOTSTRAP_DELAY
 
+    def is_associated(self, community, member):
+        """
+        Bootstrap nodes are, by definition, always associated hence we return true.
+        """
+        return True
+
     def __str__(self):
         return "B!" + super(BootstrapCandidate, self).__str__()
 
