@@ -2925,7 +2925,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         
         if not result:
             import sys
-            candidates = meta.community.dispersy_yield_random_candidates()
+            candidates = list(meta.community.dispersy_yield_random_candidates())
             print >> sys.stderr, long(time()), "_forward failed", meta.name, type(meta.destination), len(candidates), messages
         return result
     
