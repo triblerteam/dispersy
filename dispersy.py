@@ -2923,10 +2923,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         else:
             raise NotImplementedError(meta.destination)
         
-        if not result:
-            import sys
+        if __debug__ and not result:
             candidates = list(meta.community.dispersy_yield_random_candidates())
-            print >> sys.stderr, long(time()), "_forward failed", meta.name, type(meta.destination), len(candidates), messages
+            dprint("_forward failed, did not send %d %s messages destinationtype %s nr candidates %d"%(len(messages), meta.name, type(meta.destination), len(candidates)), level="warning")
         return result
     
     def _send(self, candidates, messages, debug = False):
