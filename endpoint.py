@@ -166,42 +166,43 @@ class RawserverEndpoint(Endpoint):
 
     def _process_sendqueue(self):
         with self._sendqueue_lock:
-            index = 0
-            NUM_PACKETS = min(max(50, len(self._sendqueue) / 10), len(self._sendqueue))
-            if DEBUG:
-                print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
-            
-            for i in xrange(NUM_PACKETS):
-                sock_addr, data = self._sendqueue[i]
-                try:
-                    self._socket.sendto(data, sock_addr)
-                    if DEBUG:
-                        try:
-                            name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
-                        except:
-                            name = "???"
-                        print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
-                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, name)
-                        
-                    index += 1
-
-                except socket.error, e:
-                    if e[0] != SOCKET_BLOCK_ERRORCODE:
-                        if DEBUG:
-                            print >> sys.stderr, long(time()), "endpoint: could not send", len(data), "to", sock_addr, len(self._sendqueue)
-                            print_exc()
-                            
-                    self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, u"socket-error")
-                    break
-
-            self._sendqueue = self._sendqueue[index:]
             if self._sendqueue:
-                # And schedule a new attempt
-                self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
+                index = 0
+                NUM_PACKETS = min(max(50, len(self._sendqueue) / 10), len(self._sendqueue))
                 if DEBUG:
-                    print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
-            
-            self._cur_sendqueue = len(self._sendqueue)
+                    print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue, trying to send", NUM_PACKETS
+                
+                for i in xrange(NUM_PACKETS):
+                    sock_addr, data = self._sendqueue[i]
+                    try:
+                        self._socket.sendto(data, sock_addr)
+                        if DEBUG:
+                            try:
+                                name = self._dispersy.convert_packet_to_meta_message(data, load=False, auto_load=False).name
+                            except:
+                                name = "???"
+                            print >> sys.stderr, "endpoint: %.1f %30s -> %15s:%-5d %4d bytes" % (time(), name, sock_addr[0], sock_addr[1], len(data))
+                            self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, name)
+                            
+                        index += 1
+    
+                    except socket.error, e:
+                        if e[0] != SOCKET_BLOCK_ERRORCODE:
+                            if DEBUG:
+                                print >> sys.stderr, long(time()), "endpoint: could not send", len(data), "to", sock_addr, len(self._sendqueue)
+                                print_exc()
+                                
+                        self._dispersy.statistics.dict_inc(self._dispersy.statistics.endpoint_send, u"socket-error")
+                        break
+    
+                self._sendqueue = self._sendqueue[index:]
+                if self._sendqueue:
+                    # And schedule a new attempt
+                    self._add_task(self._process_sendqueue, 0.1, "process_sendqueue")
+                    if DEBUG:
+                        print >> sys.stderr, "endpoint:", len(self._sendqueue), "left in queue"
+                
+                self._cur_sendqueue = len(self._sendqueue)
                 
 class StandaloneEndpoint(RawserverEndpoint):
     def __init__(self, dispersy, port, ip="0.0.0.0"):
