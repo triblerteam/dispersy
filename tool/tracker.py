@@ -194,7 +194,7 @@ class TrackerDispersy(Dispersy):
         kargs["singleton_placeholder"] = Dispersy
         return super(TrackerDispersy, cls).get_instance(*args, **kargs)
 
-    def __init__(self, callback, working_directory):
+    def __init__(self, callback, working_directory, silent = False):
         super(TrackerDispersy, self).__init__(callback, working_directory, u":memory:")
 
         # non-autoload nodes
@@ -209,10 +209,13 @@ class TrackerDispersy(Dispersy):
 
         # location of persistent storage
         self._persistent_storage_filename = os.path.join(working_directory, "persistent-storage.data")
+        self._silent = silent
 
         callback.register(self._load_persistent_storage)
         callback.register(self._unload_communities)
-        callback.register(self._report_statistics)
+        
+        if not self._silent:
+            callback.register(self._report_statistics)
 
     @property
     def persistent_storage_filename(self):
@@ -317,17 +320,19 @@ class TrackerDispersy(Dispersy):
             return super(TrackerDispersy, self).create_introduction_request(destination, allow_sync, forward)
 
     def on_introduction_request(self, messages):
-        hex_cid = messages[0].community.cid.encode("HEX")
-        for message in messages:
-            host, port = message.candidate.sock_addr
-            print "REQ_IN2", hex_cid, message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
+        if not self._silent:
+            hex_cid = messages[0].community.cid.encode("HEX")
+            for message in messages:
+                host, port = message.candidate.sock_addr
+                print "REQ_IN2", hex_cid, message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
         return super(TrackerDispersy, self).on_introduction_request(messages)
 
     def on_introduction_response(self, messages):
-        hex_cid = messages[0].community.cid.encode("HEX")
-        for message in messages:
-            host, port = message.candidate.sock_addr
-            print "RES_IN2", hex_cid, message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
+        if not self._silent:
+            hex_cid = messages[0].community.cid.encode("HEX")
+            for message in messages:
+                host, port = message.candidate.sock_addr
+                print "RES_IN2", hex_cid, message.authentication.member.mid.encode("HEX"), ord(message.conversion.dispersy_version), ord(message.conversion.community_version), host, port
         return super(TrackerDispersy, self).on_introduction_response(messages)
 
 def main():
@@ -337,12 +342,13 @@ def main():
     command_line_parser.add_option("--statedir", action="store", type="string", help="Use an alternate statedir", default=".")
     command_line_parser.add_option("--ip", action="store", type="string", default="0.0.0.0", help="Dispersy uses this ip")
     command_line_parser.add_option("--port", action="store", type="int", help="Dispersy uses this UDL port", default=6421)
+    command_line_parser.add_option("--silent", action="store_true", help="Prevent tracker printing to console", default=False)
 
     # parse command-line arguments
     opt, _ = command_line_parser.parse_args()
 
     # start Dispersy
-    dispersy = TrackerDispersy.get_instance(Callback(), unicode(opt.statedir))
+    dispersy = TrackerDispersy.get_instance(Callback(), unicode(opt.statedir), not bool(opt.silent))
     dispersy.endpoint = StandaloneEndpoint(dispersy, opt.port, opt.ip)
     dispersy.endpoint.start()
     dispersy.define_auto_load(TrackerCommunity)
