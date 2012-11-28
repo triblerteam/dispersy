@@ -251,7 +251,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                 read_list, write_list, _ = select(socket_list, [], [], 0.1)
             
             # Furthermore, if we are allowed to send, process sendqueue immediately
-            if write_list:
+            if write_list and self._sendqueue:
                 self._process_sendqueue()
                 prev_sendqueue = time()
                 
