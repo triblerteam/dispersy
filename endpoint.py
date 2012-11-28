@@ -166,8 +166,6 @@ class RawserverEndpoint(Endpoint):
 
     def _process_sendqueue(self):
         with self._sendqueue_lock:
-            assert self._sendqueue
-            
             index = 0
             NUM_PACKETS = min(max(50, len(self._sendqueue) / 10), len(self._sendqueue))
             if DEBUG:
@@ -251,7 +249,7 @@ class StandaloneEndpoint(RawserverEndpoint):
                 read_list, write_list, _ = select(socket_list, [], [], 0.1)
             
             # Furthermore, if we are allowed to send, process sendqueue immediately
-            if write_list and self._sendqueue:
+            if write_list:
                 self._process_sendqueue()
                 prev_sendqueue = time()
                 
