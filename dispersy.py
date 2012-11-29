@@ -2431,18 +2431,10 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             assert self.is_valid_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
             assert self.is_valid_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
 
-            # # we can only use WalkCandidates
-            # if not isinstance(candidate, WalkCandidate):
-            #     return False
-
             if candidate.wan_address[0] == introduced.wan_address[0]:
                 if candidate.lan_address == introduced.lan_address:
                     # must not introduce someone to herself (inside same LAN)
                     return False
-
-            elif candidate.sock_addr == introduced.wan_address:
-                # must not introduce someone to herself
-                return False
 
             if (message.payload.connection_type == u"symmetric-NAT" and
                 introduced.connection_type == u"symmetric-NAT" and
@@ -2599,12 +2591,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     yield DropMessage(message, "invalid LAN introduction address [is_valid_address]")
                     continue
 
-                if message.payload.lan_introduction_address == message.candidate.sock_addr:
-                    yield DropMessage(message, "invalid LAN introduction address [introducing herself]")
-                    continue
-
                 if message.payload.lan_introduction_address == self._lan_address:
-                    yield DropMessage(message, "invalid LAN introduction address [introducing myself]")
+                    yield DropMessage(message, "invalid LAN introduction address [introduced to myself] from [%s]"%str(message.candidate))
                     continue
 
             # check introduced WAN address, if given
@@ -2613,12 +2601,8 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     yield DropMessage(message, "invalid WAN introduction address [is_valid_address]")
                     continue
 
-                if message.payload.wan_introduction_address == message.candidate.sock_addr:
-                    yield DropMessage(message, "invalid WAN introduction address [introducing herself]")
-                    continue
-
                 if message.payload.wan_introduction_address == self._wan_address:
-                    yield DropMessage(message, "invalid WAN introduction address [introducing myself]")
+                    yield DropMessage(message, "invalid WAN introduction address [introduced to myself] from [%s]"%str(message.candidate))
                     continue
 
             yield message
