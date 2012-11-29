@@ -191,7 +191,7 @@ class DropMessage(Exception):
         return self.__class__(dropped, self.message)
     
     def __str__(self):
-        return super(DropMessage, self).__str__() + self._dropped.name + str(self._dropped.candidate)
+        return super(DropMessage, self).__str__() + self._dropped.name
 #
 # batch
 #
