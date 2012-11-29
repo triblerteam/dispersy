@@ -2592,7 +2592,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     continue
 
                 if message.payload.lan_introduction_address == self._lan_address:
-                    yield DropMessage(message, "invalid LAN introduction address [introduced to myself] from [%s]"%str(message.candidate))
+                    yield DropMessage(message, "invalid LAN introduction address [introduced to myself]")
                     continue
 
             # check introduced WAN address, if given
@@ -2602,7 +2602,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     continue
 
                 if message.payload.wan_introduction_address == self._wan_address:
-                    yield DropMessage(message, "invalid WAN introduction address [introduced to myself] from [%s]"%str(message.candidate))
+                    yield DropMessage(message, "invalid WAN introduction address [introduced to myself]")
                     continue
 
             yield message
