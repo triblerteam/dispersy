@@ -1280,7 +1280,10 @@ class Community(object):
 
     def _iter_all(self):
         while True:
+            import sys
+            print >> sys.stderr, "While entered"
             for candidate in self._dispersy._candidates.itervalues():
+                print >> sys.stderr, "For entered", candidate
                 if candidate.in_community(self, time()) and candidate.is_any_active(time()):
                     yield candidate
     
