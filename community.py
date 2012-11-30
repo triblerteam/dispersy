@@ -1283,9 +1283,13 @@ class Community(object):
             import sys
             print >> sys.stderr, "While entered"
             for candidate in self._dispersy._candidates.itervalues():
-                print >> sys.stderr, "For entered", candidate
+                print >> sys.stderr, "For entered", candidate 
                 if candidate.in_community(self, time()) and candidate.is_any_active(time()):
+                    print >> sys.stderr, "Correct community", candidate 
                     yield candidate
+                else:
+                    print >> sys.stderr, "NOT Correct community", candidate.in_community(self, time()) , candidate.is_any_active(time())
+                    
     
     def _iter_category(self, category):
         for candidate in self._iter_all():
