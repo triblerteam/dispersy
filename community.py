@@ -1285,8 +1285,14 @@ class Community(object):
     
     def _iter_category(self, category):
         for candidate in cycle(self._iter_all()):
+            candidate_category = candidate.get_category(self, time())
+            if candidate_category == category:
+                yield candidate
+                
+    def _iter_categories(self, categories):
+        for candidate in cycle(self._iter_all()):
             category = candidate.get_category(self, time())
-            if category == category:
+            if category in categories:
                 yield candidate
     
     def dispersy_yield_random_candidates(self, candidate = None):
