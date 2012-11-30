@@ -41,7 +41,7 @@ import sys
 import netifaces
 
 from hashlib import sha1
-from itertools import groupby, islice, count
+from itertools import groupby, islice, count, cycle
 from random import random, shuffle
 from socket import inet_aton, error as socket_error
 from time import time
@@ -1984,8 +1984,8 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
 
             except DelayPacket, delay:
                 if __debug__:
-                    dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)
-                
+                    dprint("delay a ", len(packet), " byte packet (", delay, ") from ", candidate)                
+
                 if delay.create_request(candidate, packet):
                     self._statistics.delay_send += 1
                 self._statistics.dict_inc(self._statistics.delay, "_convert_batch_into_messages:%s" % delay)
@@ -2283,7 +2283,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
 
     def create_introduction_request(self, community, destination, allow_sync, forward=True):
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
-        
+        self._statistics.walk_attempt += 1
         cache = IntroductionRequestCache(community, destination)
         destination.walk(community, time(), cache.timeout_delay)
 
@@ -2460,26 +2460,34 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             self._filter_duplicate_candidate(candidate)
             if __debug__: dprint("received introduction request from ", candidate)
 
+        for message in messages:
+            payload = message.payload
+
             if payload.advice:
                 for introduced in random_candidate_iterator(candidate):
                     if is_valid_candidate(message, candidate, introduced):
                         # found candidate, break
                         break
 
-                    else:
-                        random_candidate_stack.append(introduced)
+                    if introduced.sock_addr == first_invalid_sock_addr:
+                        # we cycled through all candidates in
+                        # random_candidate_iterator and did not find
+                        # any valid ones
+                        introduced = None
+                        break
+
+                    if first_invalid_sock_addr is None:
+                        # introduced is not valid for this candidate,
+                        # we will remember its sock_addr to ensure
+                        # that we do not endlessly loop over the
+                        # random_candidate_iterator
+                        first_invalid_sock_addr = introduced.sock_addr
 
                 else:
-                    # did not break, no candidate found in iterator.  try the stack
-                    for index, introduced in enumerate(random_candidate_stack):
-                        if is_valid_candidate(message, candidate, introduced):
-                            # found candidate, break
-                            del random_candidate_stack[index]
-                            break
-
-                    else:
-                        # did not break, no candidate found
-                        introduced = None
+                    # no more entries in random_candidate_iterator.
+                    # this means that the iterator is empty (since
+                    # this is a cycled iterator)
+                    introduced = None
 
             else:
                 if __debug__: dprint("no candidates available to introduce")
@@ -3481,7 +3489,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             meta = community.get_meta_message(u"dispersy-missing-sequence")
             request = meta.impl(distribution=(community.global_time,), destination=(candidate,), payload=(member, message, missing_low, missing_high))
             self._forward([request])
-           
+
             sendRequest = True
            
         return sendRequest
@@ -4377,7 +4385,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                             if counter > meta.distribution.history_size:
                                 raise ValueError("decayed packet ", packet_id, " still in database")
-
+                            
                             if __debug__: dprint("LastSyncDistribution for '", meta.name, "' is OK")
 
                     else:
