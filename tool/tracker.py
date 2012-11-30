@@ -201,7 +201,7 @@ class TrackerCommunity(Community):
         prev_result = None
         while True:
             result = self._walked_stumbled_candidates.next() 
-    
+            print >> sys.stderr, "RR", result
             if prev_result == result:
                 yield None
             else:

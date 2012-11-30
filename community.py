@@ -1291,6 +1291,8 @@ class Community(object):
                 
     def _iter_categories(self, categories):
         for candidate in cycle(self._iter_all()):
+            import sys
+            print >> sys.stderr, "CC", candidate
             category = candidate.get_category(self, time())
             if category in categories:
                 yield candidate
