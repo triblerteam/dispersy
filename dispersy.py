@@ -2404,11 +2404,6 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             assert self.is_valid_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
             assert self.is_valid_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
 
-            if candidate.wan_address[0] == introduced.wan_address[0]:
-                if candidate.lan_address == introduced.lan_address:
-                    # must not introduce someone to herself (inside same LAN)
-                    return False
-
             if (message.payload.connection_type == u"symmetric-NAT" and
                 introduced.connection_type == u"symmetric-NAT" and
                 not candidate.wan_address[0] == introduced.wan_address[0]):
