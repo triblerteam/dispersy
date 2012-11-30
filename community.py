@@ -1279,18 +1279,19 @@ class Community(object):
         return self._dispersy.yield_candidates(self)
 
     def _iter_all(self):
-        for candidate in cycle(self._dispersy._candidates.itervalues()):
-            if candidate.in_community(self, time()) and candidate.is_any_active(time()):
-                yield candidate
+        while True:
+            for candidate in self._dispersy._candidates.itervalues():
+                if candidate.in_community(self, time()) and candidate.is_any_active(time()):
+                    yield candidate
     
     def _iter_category(self, category):
-        for candidate in cycle(self._iter_all()):
+        for candidate in self._iter_all():
             candidate_category = candidate.get_category(self, time())
             if candidate_category == category:
                 yield candidate
                 
     def _iter_categories(self, categories):
-        for candidate in cycle(self._iter_all()):
+        for candidate in self._iter_all():
             import sys
             print >> sys.stderr, "CC", candidate
             category = candidate.get_category(self, time())
