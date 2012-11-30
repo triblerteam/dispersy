@@ -2400,6 +2400,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         def is_valid_candidate(message, candidate, introduced):
             if introduced == None:
                 return True
+            
             assert isinstance(introduced, WalkCandidate)
             assert self.is_valid_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
             assert self.is_valid_address(introduced.wan_address), [introduced.wan_address, self.wan_address]
@@ -2415,16 +2416,12 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         #
         # process the walker part of the request
         #
-
         community = messages[0].community
         meta_introduction_response = community.get_meta_message(u"dispersy-introduction-response")
         meta_puncture_request = community.get_meta_message(u"dispersy-puncture-request")
         responses = []
         requests = []
         now = time()
-
-        random_candidate_iterator = community.dispersy_yield_random_candidates
-        random_candidate_stack = []
 
         for message in messages:
             payload = message.payload
@@ -2461,37 +2458,22 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             candidate = message.candidate
 
             if payload.advice:
-                for introduced in random_candidate_iterator(candidate):
+                for introduced in community.dispersy_yield_random_candidates(candidate):
                     if is_valid_candidate(message, candidate, introduced):
                         # found candidate, break
                         break
-
-                    if introduced.sock_addr == first_invalid_sock_addr:
-                        # we cycled through all candidates in
-                        # random_candidate_iterator and did not find
-                        # any valid ones
-                        introduced = None
-                        break
-
-                    if first_invalid_sock_addr is None:
-                        # introduced is not valid for this candidate,
-                        # we will remember its sock_addr to ensure
-                        # that we do not endlessly loop over the
-                        # random_candidate_iterator
-                        first_invalid_sock_addr = introduced.sock_addr
-
+                    
                 else:
                     # no more entries in random_candidate_iterator.
                     # this means that the iterator is empty (since
                     # this is a cycled iterator)
                     introduced = None
-
             else:
                 if __debug__: dprint("no candidates available to introduce")
                 introduced = None
 
             if introduced:
-                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists")
+                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists", force = 1)
 
                 # create introduction response
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, introduced.lan_address, introduced.wan_address, self._connection_type, introduced.tunnel, payload.identifier)))
@@ -2500,7 +2482,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 requests.append(meta_puncture_request.impl(distribution=(community.global_time,), destination=(introduced,), payload=(source_lan_address, source_wan_address, payload.identifier)))
 
             else:
-                if __debug__: dprint("responding to ", candidate, " without an introduction")
+                if __debug__: dprint("responding to ", candidate, " without an introduction", force = 1)
 
                 none = ("0.0.0.0", 0)
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, none, none, self._connection_type, False, payload.identifier)))
@@ -2606,7 +2588,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             candidate.associate(community, message.authentication.member)
             candidate.walk_response(community)
             self._filter_duplicate_candidate(candidate)
-            if __debug__: dprint("introduction response from ", candidate)
+            if __debug__: dprint("introduction response from ", candidate, force = 1)
 
             # apply vote to determine our WAN address
             self.wan_address_vote(payload.destination_address, candidate)

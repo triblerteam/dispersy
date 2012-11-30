@@ -312,7 +312,6 @@ class Community(object):
         self._statistics = CommunityStatistics(self)
         
         #Initialize all the candidate iterators
-        self._all_candidates = self._iter_all()
         self._walked_candidates = self._iter_category(u'walk')
         self._stumbled_candidates = self._iter_category(u'stumble')
         self._introduced_candidates = self._iter_category(u'intro')
@@ -1278,39 +1277,32 @@ class Community(object):
     def dispersy_yield_candidates(self):
         return self._dispersy.yield_candidates(self)
 
-    def _iter_all(self):
-        while True:
-            import sys
-            print >> sys.stderr, "While entered"
-            for candidate in self._dispersy._candidates.itervalues():
-                print >> sys.stderr, "For entered", candidate 
-                if candidate.in_community(self, time()) and candidate.is_any_active(time()):
-                    print >> sys.stderr, "Correct community", candidate 
-                    yield candidate
-                else:
-                    print >> sys.stderr, "NOT Correct community", candidate.in_community(self, time()) , candidate.is_any_active(time())
-                    
-    
     def _iter_category(self, category):
-        for candidate in self._iter_all():
-            candidate_category = candidate.get_category(self, time())
-            if candidate_category == category:
-                yield candidate
+        while True:
+            no_result = True
+            for candidate in self._dispersy._candidates.itervalues():
+                if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
+                    no_result = False
+                    yield candidate
+            
+            if no_result:
+                yield None
                 
     def _iter_categories(self, categories):
-        for candidate in self._iter_all():
-            import sys
-            print >> sys.stderr, "CC", candidate
-            category = candidate.get_category(self, time())
-            if category in categories:
-                yield candidate
+        while True:
+            no_result = True
+            for candidate in self._dispersy._candidates.itervalues():
+                if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
+                    no_result = False
+                    yield candidate
+                    
+            if no_result:
+                yield None
     
     def dispersy_yield_random_candidates(self, candidate = None):
         """
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
-        if __debug__:
-            from .community import Community
         assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
         
         prev_result = None
@@ -1322,14 +1314,13 @@ class Community(object):
     
             if prev_result == result:
                 yield None
+                
             else:
                 prev_result = result
-                
                 if result == candidate:
                     continue
                 
                 yield result
-            
 
     @documentation(Dispersy.yield_walk_candidates)
     def dispersy_yield_walk_candidates(self):
