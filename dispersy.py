@@ -2884,6 +2884,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
         @type messages: [Message.Implementation]
         """
         assert isinstance(candidates, (tuple, list, set)), type(candidates)
+        candidates = [candidate for candidate in candidates if candidate]
         assert all(isinstance(candidate, Candidate) for candidate in candidates)
         assert isinstance(messages, (tuple, list))
         assert len(messages) > 0
