@@ -2445,6 +2445,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 candidate = message.candidate
             else:
                 candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
+                message._candidate = candidate
 
             # apply vote to determine our WAN address
             self.wan_address_vote(payload.destination_address, candidate)
@@ -2462,6 +2463,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
 
         for message in messages:
             payload = message.payload
+            candidate = message.candidate
 
             if payload.advice:
                 for introduced in random_candidate_iterator(candidate):
