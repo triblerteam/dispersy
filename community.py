@@ -1280,7 +1280,8 @@ class Community(object):
     def _iter_category(self, category):
         while True:
             no_result = True
-            for candidate in self._dispersy._candidates.values():
+            for key in self._dispersy._candidates:
+                candidate = self._dispersy._candidates[key]
                 if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
                     no_result = False
                     yield candidate
@@ -1291,7 +1292,8 @@ class Community(object):
     def _iter_categories(self, categories):
         while True:
             no_result = True
-            for candidate in self._dispersy._candidates.values():
+            for key in self._dispersy._candidates:
+                candidate = self._dispersy._candidates[key]
                 if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
                     no_result = False
                     yield candidate
