@@ -13,6 +13,7 @@ from itertools import islice
 from math import ceil
 from random import random, Random, randint
 from time import time
+from itertools import cycle
 
 from .bloomfilter import BloomFilter
 from .conversion import BinaryConversion, DefaultConversion
@@ -309,6 +310,12 @@ class Community(object):
 
         # statistics...
         self._statistics = CommunityStatistics(self)
+        
+        #Initialize all the candidate iterators
+        self._all_candidates = self._iter_all()
+        self._walked_candidates = self._iter_category(u'walk')
+        self._stumbled_candidates = self._iter_category(u'stumble')
+        self._introduced_candidates = self._iter_category(u'intro')
 
     @property
     def statistics(self):
@@ -1271,9 +1278,30 @@ class Community(object):
     def dispersy_yield_candidates(self):
         return self._dispersy.yield_candidates(self)
 
-    @documentation(Dispersy.yield_random_candidates)
+    def _iter_all(self):
+        for candidate in cycle(self._dispersy._candidates.itervalues()):
+            if candidate.in_community(self, time()) and candidate.is_any_active(time()):
+                yield candidate
+    
+    def _iter_category(self, category):
+        for candidate in cycle(self._iter_all()):
+            category = candidate.get_category(self, time())
+            if category == category:
+                yield candidate
+    
     def dispersy_yield_random_candidates(self, candidate = None):
-        return self._dispersy.yield_random_candidates(self)
+        """
+        Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
+        """
+        if __debug__:
+            from .community import Community
+        assert all(not sock_address in self._dispersy._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+        
+        while True:
+            if random() <= .5:
+                yield self._walked_candidates.next()
+            else:
+                yield self._stumbled_candidates.next()
 
     @documentation(Dispersy.yield_walk_candidates)
     def dispersy_yield_walk_candidates(self):

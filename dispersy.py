@@ -2131,35 +2131,6 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         now = time()
         return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now))
 
-    def yield_random_candidates(self, community):
-        """
-        Yields unique active random candidates that are part of COMMUNITY.
-        """
-        if __debug__:
-            from .community import Community
-        assert isinstance(community, Community)
-        assert all(not sock_address in self._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
-
-        now = time()
-        W = []
-        S = []
-        for candidate in self._candidates.itervalues():
-            if candidate.in_community(community, now) and candidate.is_any_active(now):
-                category = candidate.get_category(community, now)
-                if category == u"walk":
-                    W.append(candidate)
-                elif category == u"stumble":
-                    S.append(candidate)
-
-        while W and S:
-            yield W.pop(int(random() * len(W))) if random() <= .5 else S.pop(int(random() * len(S)))
-
-        while W:
-            yield W.pop(int(random() * len(W)))
-
-        while S:
-            yield S.pop(int(random() * len(S)))
-
     def yield_walk_candidates(self, community):
         """
         Yields a mixture of all candidates that we could get our hands on that are part of
