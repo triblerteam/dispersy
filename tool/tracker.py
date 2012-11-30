@@ -91,6 +91,8 @@ class TrackerCommunity(Community):
         # by one.  once 'strike' reaches a predefined value the community is cleaned
         self._strikes = 0
 
+        self._walked_stumbled_candidates = self._iter_categories([u'walk', u'stumble'])
+
     def _initialize_meta_messages(self):
         super(TrackerCommunity, self)._initialize_meta_messages()
 
@@ -188,6 +190,17 @@ class TrackerCommunity(Community):
 
         return TrackerHardKilledCommunity
 
+    def dispersy_yield_random_candidate(self, candidate=None):
+       """
+        Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
+        """
+        if __debug__:
+            from .community import Community
+        assert all(not sock_address in self._dispersy._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+
+        for candidate in self._walked_stumbled_candidates:
+                yield candidate
+
 class TrackerDispersy(Dispersy):
     @classmethod
     def get_instance(cls, *args, **kargs):
@@ -265,21 +278,6 @@ class TrackerDispersy(Dispersy):
 
         else:
             return []
-
-    def yield_random_candidates(self, community):
-        # the regular yield_random_candidates includes a security mechanism where we first choose
-        # the category (walk or stumble) and than a candidate.  this results in a problem with flash
-        # crowds, we solve this by removing the security mechanism.  this mechanism is not useful
-        # for trackers as they will always receive a steady supply of valid connections as well.
-        now = time()
-        candidates = self._candidates.values()
-        for length in xrange(len(candidates), 0, -1):
-            candidate = candidates.pop(int(random() * length))
-            if candidate.in_community(community, now) and candidate.is_any_active(now):
-                yield candidate
-        # candidates = [candidate for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now)]
-        # for length in xrange(len(candidates), 0, -1):
-        #     yield candidates.pop(int(random() * length))
 
     def _unload_communities(self):
         def is_active(community, now):
