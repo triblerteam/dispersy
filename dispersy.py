@@ -2453,10 +2453,6 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             self._filter_duplicate_candidate(candidate)
             if __debug__: dprint("received introduction request from ", candidate)
 
-        for message in messages:
-            payload = message.payload
-            candidate = message.candidate
-
             if payload.advice:
                 for introduced in community.dispersy_yield_random_candidates(candidate):
                     if is_valid_candidate(message, candidate, introduced):
