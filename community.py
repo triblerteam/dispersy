@@ -1303,11 +1303,23 @@ class Community(object):
             from .community import Community
         assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
         
+        prev_result = None
         while True:
             if random() <= .5:
-                yield self._walked_candidates.next()
+                result = self._walked_candidates.next() 
             else:
-                yield self._stumbled_candidates.next()
+                result = self._stumbled_candidates.next()
+    
+            if prev_result == result:
+                yield None
+            else:
+                prev_result = result
+                
+                if result == candidate:
+                    continue
+                
+                yield result
+            
 
     @documentation(Dispersy.yield_walk_candidates)
     def dispersy_yield_walk_candidates(self):

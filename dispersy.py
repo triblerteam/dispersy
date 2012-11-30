@@ -2398,6 +2398,8 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
 
     def on_introduction_request(self, messages):
         def is_valid_candidate(message, candidate, introduced):
+            if introduced == None:
+                return True
             assert isinstance(introduced, WalkCandidate)
             assert self.is_valid_address(introduced.lan_address), [introduced.lan_address, self.lan_address]
             assert self.is_valid_address(introduced.wan_address), [introduced.wan_address, self.wan_address]

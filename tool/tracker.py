@@ -198,8 +198,19 @@ class TrackerCommunity(Community):
             from .community import Community
         assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
 
-        for candidate in self._walked_stumbled_candidates:
-                yield candidate
+        prev_result = None
+        while True:
+            result = self._walked_stumbled_candidates.next() 
+    
+            if prev_result == result:
+                yield None
+            else:
+                prev_result = result
+                
+                if result == candidate:
+                    continue
+                
+                yield result
 
 class TrackerDispersy(Dispersy):
     @classmethod
