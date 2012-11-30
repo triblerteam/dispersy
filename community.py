@@ -1301,7 +1301,7 @@ class Community(object):
         """
         if __debug__:
             from .community import Community
-        assert all(not sock_address in self._dispersy._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+        assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
         
         while True:
             if random() <= .5:

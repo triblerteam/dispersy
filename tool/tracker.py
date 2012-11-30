@@ -191,12 +191,12 @@ class TrackerCommunity(Community):
         return TrackerHardKilledCommunity
 
     def dispersy_yield_random_candidate(self, candidate=None):
-       """
+        """
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
         if __debug__:
             from .community import Community
-        assert all(not sock_address in self._dispersy._candidates for sock_address in self._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+        assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
 
         for candidate in self._walked_stumbled_candidates:
                 yield candidate
