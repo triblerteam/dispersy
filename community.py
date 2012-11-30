@@ -1292,15 +1292,18 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
                         no_result = False
-                        
                         yield candidate
-                        keys = self._dispersy._candidates.keys()
-                        key_index = keys.index(key_value)
-                    else:
-                        key_index += 1
+                        
+                    elif category == candidate.get_category(self, time()):
+                        import sys
+                        print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time()) 
+                        
+                    key_index += 1
                         
                 except IndexError:
-                    break
+                    keys = self._dispersy._candidates.keys()
+                    if key_index >= len(keys):
+                        break
             
             if no_result:
                 yield None
@@ -1320,15 +1323,18 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
                         no_result = False
-                        
                         yield candidate
-                        keys = self._dispersy._candidates.keys()
-                        key_index = keys.index(key_value)
-                    else:
-                        key_index += 1
+                        
+                    elif candidate.get_category(self, time()) in categories:
+                        import sys
+                        print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time())
+                        
+                    key_index += 1
                         
                 except IndexError:
-                    break
+                    keys = self._dispersy._candidates.keys()
+                    if key_index >= len(keys):
+                        break
                     
             if no_result:
                 yield None
