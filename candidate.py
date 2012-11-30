@@ -303,33 +303,35 @@ class WalkCandidate(Candidate):
             return False
 
     def last_walk(self, community):
-        assert community.cid in self._timestamps
-        return self._timestamps[community.cid].last_walk
+        timestamps = self._timestamps.get(community.cid)
+        if timestamps:
+            return self._timestamps[community.cid].last_walk
 
     def last_stumble(self, community):
-        assert community.cid in self._timestamps
-        return self._timestamps[community.cid].last_stumble
+        timestamps = self._timestamps.get(community.cid)
+        if timestamps:
+            return self._timestamps[community.cid].last_stumble
 
     def last_intro(self, community):
-        assert community.cid in self._timestamps
-        return self._timestamps[community.cid].last_intro
+        timestamps = self._timestamps.get(community.cid)
+        if timestamps:
+            return self._timestamps[community.cid].last_intro
 
     def get_category(self, community, now):
         """
         Returns the category (u"walk", u"stumble", u"intro", or u"none") depending on the current
         time NOW.
         """
-        assert community.cid in self._timestamps
-        timestamps = self._timestamps[community.cid]
-
-        if timestamps.last_walk + timestamps.timeout_adjustment <= now < timestamps.last_walk + CANDIDATE_WALK_LIFETIME:
-            return u"walk"
-
-        if now < timestamps.last_stumble + CANDIDATE_STUMBLE_LIFETIME:
-            return u"stumble"
-
-        if now < timestamps.last_intro + CANDIDATE_INTRO_LIFETIME:
-            return u"intro"
+        timestamps = self._timestamps.get(community.cid)
+        if timestamps:
+            if timestamps.last_walk + timestamps.timeout_adjustment <= now < timestamps.last_walk + CANDIDATE_WALK_LIFETIME:
+                return u"walk"
+    
+            if now < timestamps.last_stumble + CANDIDATE_STUMBLE_LIFETIME:
+                return u"stumble"
+    
+            if now < timestamps.last_intro + CANDIDATE_INTRO_LIFETIME:
+                return u"intro"
 
         return u"none"
 
