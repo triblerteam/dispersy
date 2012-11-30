@@ -1280,11 +1280,18 @@ class Community(object):
     def _iter_category(self, category):
         while True:
             no_result = True
-            for key in self._dispersy._candidates:
-                candidate = self._dispersy._candidates[key]
-                if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
-                    no_result = False
-                    yield candidate
+            key = None
+            while True:
+                try:
+                    keys = self._dispersy._candidates.keys()
+                    key = keys[(keys.index(key) + 1) if key else 0]
+                    candidate = self._dispersy._candidates[key]
+                    if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
+                        no_result = False
+                        yield candidate
+                        
+                except IndexError:
+                    break
             
             if no_result:
                 yield None
@@ -1292,11 +1299,18 @@ class Community(object):
     def _iter_categories(self, categories):
         while True:
             no_result = True
-            for key in self._dispersy._candidates:
-                candidate = self._dispersy._candidates[key]
-                if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
-                    no_result = False
-                    yield candidate
+            key = None
+            while True:
+                try:
+                    keys = self._dispersy._candidates.keys()
+                    key = keys[(keys.index(key) + 1) if key else 0]
+                    candidate = self._dispersy._candidates[key]
+                    if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
+                        no_result = False
+                        yield candidate
+                        
+                except IndexError:
+                    break
                     
             if no_result:
                 yield None
