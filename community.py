@@ -1347,14 +1347,17 @@ class Community(object):
         
         prev_result = None
         while True:
-            if random() <= .5:
-                result = self._walked_candidates.next() 
-            else:
+            result = None
+            r = random()
+            if r <= .5:
+                result = self._walked_candidates.next()
+            if not result:
                 result = self._stumbled_candidates.next()
+            if not result and r > .5:
+                result = self._walked_candidates.next()
     
             if prev_result == result:
                 yield None
-                
             else:
                 prev_result = result
                 if result == candidate:
