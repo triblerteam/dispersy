@@ -1503,12 +1503,9 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
 
         When we learn that a candidate happens to be behind a symmetric NAT we must remove all other
         candidates that have the same host.
-
-        Unfortunately this only allows us to 'see' one peer behind a symmetric NAT, even though
-        multiple peers may exist.
         """
         is_symmetric_nat = candidate.connection_type == u"symmetric-NAT"
-        sock_addr = candidate.sock_addr
+        wan_address = candidate.wan_address
         lan_address = candidate.lan_address
 
         # find existing candidates that are likely to be the same candidate
@@ -1516,7 +1513,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                   for other
                   in self._candidates.itervalues()
                   if ((is_symmetric_nat or other.connection_type == u"symmetric-NAT") and
-                      other.sock_addr[0] == sock_addr[0] and
+                      other.wan_address[0] == wan_address[0] and
                       other.lan_address == lan_address)]
 
         # merge and remove existing candidates in favor of the new CANDIDATE
