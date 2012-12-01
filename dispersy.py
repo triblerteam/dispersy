@@ -40,6 +40,12 @@ import os
 import sys
 import netifaces
 
+try:
+    # python 2.7 only...
+    from collections import OrderedDict
+except ImportError:
+    from .python27_ordereddict import OrderedDict
+
 from hashlib import sha1
 from itertools import groupby, islice, count, cycle
 from random import random, shuffle
@@ -261,7 +267,7 @@ class Dispersy(Singleton):
 
         # peer selection candidates.  address:Candidate pairs (where
         # address is obtained from socket.recv_from)
-        self._candidates = {}
+        self._candidates = OrderedDict()
         self._callback.register(self._periodically_cleanup_candidates)
 
         # assigns temporary cache objects to unique identifiers
@@ -2452,11 +2458,6 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             # candidate.active(community, now)
             self._filter_duplicate_candidate(candidate)
             if __debug__: dprint("received introduction request from ", candidate)
-
-
-        for message in messages:
-            payload = message.payload
-            candidate = message.candidate
             
             if payload.advice:
                 for introduced in community.dispersy_yield_random_candidates(candidate):
