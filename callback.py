@@ -118,10 +118,10 @@ class Callback(object):
     @property
     def is_finished(self):
         """
-        Returns True when the state is either STATE_FINISHED or STATE_EXCEPTION.  In either case the
+        Returns True when the state is either STATE_FINISHED, STATE_EXCEPTION or STATE_INIT.  In either case the
         thread is no longer running.
         """
-        return self._state == "STATE_FINISHED" or self._state == "STATE_EXCEPTION"
+        return self._state == "STATE_FINISHED" or self._state == "STATE_EXCEPTION" or self._state == "STATE_INIT"
 
     @property
     def exception(self):
