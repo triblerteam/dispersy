@@ -303,19 +303,16 @@ class WalkCandidate(Candidate):
             return False
 
     def last_walk(self, community):
-        timestamps = self._timestamps.get(community.cid)
-        if timestamps:
-            return self._timestamps[community.cid].last_walk
+        assert community.cid in self._timestamps
+        return self._timestamps[community.cid].last_walk
 
     def last_stumble(self, community):
-        timestamps = self._timestamps.get(community.cid)
-        if timestamps:
-            return self._timestamps[community.cid].last_stumble
+        assert community.cid in self._timestamps
+        return self._timestamps[community.cid].last_stumble
 
     def last_intro(self, community):
-        timestamps = self._timestamps.get(community.cid)
-        if timestamps:
-            return self._timestamps[community.cid].last_intro
+        assert community.cid in self._timestamps
+        return self._timestamps[community.cid].last_intro
 
     def get_category(self, community, now):
         """

@@ -1504,7 +1504,6 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         When we learn that a candidate happens to be behind a symmetric NAT we must remove all other
         candidates that have the same host.
         """
-        is_symmetric_nat = candidate.connection_type == u"symmetric-NAT"
         wan_address = candidate.wan_address
         lan_address = candidate.lan_address
 
@@ -1512,8 +1511,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         others = [other
                   for other
                   in self._candidates.itervalues()
-                  if ((is_symmetric_nat or other.connection_type == u"symmetric-NAT") and
-                      other.wan_address[0] == wan_address[0] and
+                  if (other.wan_address[0] == wan_address[0] and
                       other.lan_address == lan_address)]
 
         # merge and remove existing candidates in favor of the new CANDIDATE
