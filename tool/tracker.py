@@ -194,7 +194,7 @@ class TrackerCommunity(Community):
         """
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
-        assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+        assert all(not sock_address in self._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
 
         prev_result = None
         while True:

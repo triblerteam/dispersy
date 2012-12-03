@@ -245,6 +245,13 @@ class GlobalCandidateCache():
         
         return default
 
+    def __len__(self):
+        candidates = set()
+        for community in self._dispersy._communities.itervalues():
+            candidates.update(community._candidates.itervalues())
+        return len(candidates)
+
+
 class Dispersy(Singleton):
     """
     The Dispersy class provides the interface to all Dispersy related commands, managing the in- and
