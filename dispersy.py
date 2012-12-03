@@ -2470,7 +2470,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 introduced = None
 
             if introduced:
-                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists", force = 1)
+                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists")
 
                 # create introduction response
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, introduced.lan_address, introduced.wan_address, self._connection_type, introduced.tunnel, payload.identifier)))
@@ -2479,7 +2479,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 requests.append(meta_puncture_request.impl(distribution=(community.global_time,), destination=(introduced,), payload=(source_lan_address, source_wan_address, payload.identifier)))
 
             else:
-                if __debug__: dprint("responding to ", candidate, " without an introduction", force = 1)
+                if __debug__: dprint("responding to ", candidate, " without an introduction")
 
                 none = ("0.0.0.0", 0)
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, none, none, self._connection_type, False, payload.identifier)))
@@ -2585,7 +2585,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
             candidate.associate(community, message.authentication.member)
             candidate.walk_response(community)
             self._filter_duplicate_candidate(candidate)
-            if __debug__: dprint("introduction response from ", candidate, force = 1)
+            if __debug__: dprint("introduction response from ", candidate)
 
             # apply vote to determine our WAN address
             self.wan_address_vote(payload.destination_address, candidate)
@@ -2618,8 +2618,9 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
 
                 # reset the 'I have been introduced' timer
                 candidate.intro(community, now)
+                self._filter_duplicate_candidate(candidate)
                 if __debug__: dprint("received introduction to ", candidate)
-
+                
                 cache.response_candidate = candidate
                 
                 # TEMP: see which peers we get returned by the trackers
