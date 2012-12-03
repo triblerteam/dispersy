@@ -1356,6 +1356,7 @@ class Community(object):
                 break
                 
     def _iter_bootstrap(self):
+        import sys
         while True:
             no_result = True
             
@@ -1363,6 +1364,7 @@ class Community(object):
             for candidate in bootstrap_candidates:
                 if candidate.in_community(self, time()) and candidate.is_eligible_for_walk(self, time()):
                     no_result = False
+                    print >> sys.stderr, "yielding bootstrap", candidate
                     yield candidate
                     
             if no_result:
@@ -1380,7 +1382,7 @@ class Community(object):
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
         assert all(not sock_address in self._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
-        
+        import sys
         prev_result = None
         while True:
             result = self._iter_a_or_b(self._walked_candidates, self._stumbled_candidates)
@@ -1392,6 +1394,7 @@ class Community(object):
                 if result == candidate:
                     continue
                 
+                print >> sys.stderr, "yielding random", result
                 yield result
 
     def dispersy_yield_walk_candidates(self):
@@ -1405,6 +1408,8 @@ class Community(object):
         # 13/02/12 Boudewijn: normal peers can not be visited multiple times within 30 seconds,
         # bootstrap peers can not be visited multiple times within 55 seconds.  this is handled by
         # the Candidate.is_eligible_for_walk(...) method
+        import sys
+        
         now = time()
         categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
         for candidate in self._candidates:
@@ -1422,6 +1427,7 @@ class Community(object):
             if r <= .4975: # ~50%
                 if walks:
                     if __debug__: dprint("yield [%2d:%2d:%2d walk   ] " % (len(walks), len(stumbles), len(intros)), walks[0])
+                    print >> sys.stderr, "yield walk"
                     yield walks.pop(0)
 
             elif r <= .995: # ~50%
@@ -1430,12 +1436,14 @@ class Community(object):
                         if random() <= .5:
                             if stumbles:
                                 if __debug__: dprint("yield [%2d:%2d:%2d stumble] " % (len(walks), len(stumbles), len(intros)), stumbles[0])
+                                print >> sys.stderr, "yield stumble"
                                 yield stumbles.pop(0)
                                 break
 
                         else:
                             if intros:
                                 if __debug__: dprint("yield [%2d:%2d:%2d intro  ] " % (len(walks), len(stumbles), len(intros)), intros[0])
+                                print >> sys.stderr, "yield intro"
                                 yield intros.pop(0)
                                 break
 
@@ -1443,11 +1451,13 @@ class Community(object):
                 for candidate in self._bootstrap_candidates:
                     if candidate:
                         if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+                        print >> sys.stderr, "yield walk_boot"
                         yield candidate
         
         for candidate in self._bootstrap_candidates:
             if candidate:
                 if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+                print >> sys.stderr, "yield walk_boot"
                 yield candidate
                 
         if __debug__: dprint("no candidates or bootstrap candidates available")
