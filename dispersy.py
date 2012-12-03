@@ -2399,7 +2399,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             candidate.stumble(community, now)
             # candidate.active(community, now)
             self._filter_duplicate_candidate(candidate)
-            if __debug__: dprint("received introduction request from ", candidate)
+            if __debug__: dprint("received introduction request from ", candidate, force = 1)
             
             if payload.advice:
                 for introduced in community.dispersy_yield_random_candidates(candidate):
