@@ -33,7 +33,7 @@ from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
 from .statistics import CommunityStatistics
 from .timeline import Timeline
-from Tribler.dispersy.candidate import WalkCandidate
+from .candidate import WalkCandidate
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
