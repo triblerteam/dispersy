@@ -3079,10 +3079,10 @@ class DispersyBootstrapServers(ScriptBase):
                 self._summary = {}
                 self._hostname = {}
                 self._identifiers = {}
-                self._candidates = self._dispersy._bootstrap_candidates.values()
-                # self._candidates = [BootstrapCandidate(("130.161.211.198", 6431))]
+                self._pcandidates = self._dispersy._bootstrap_candidates.values()
+                # self._pcandidates = [BootstrapCandidate(("130.161.211.198", 6431))]
 
-                for candidate in self._candidates:
+                for candidate in self._pcandidates:
                     self._request[candidate.sock_addr] = {}
                     self._summary[candidate.sock_addr] = []
                     self._hostname[candidate.sock_addr] = socket.getfqdn(candidate.sock_addr[0])
@@ -3121,7 +3121,7 @@ class DispersyBootstrapServers(ScriptBase):
 
             def ping(self, now):
                 dprint("PING", line=1)
-                for candidate in self._candidates:
+                for candidate in self._pcandidates:
                     request = self._dispersy.create_introduction_request(self, candidate, False)
                     self._request[candidate.sock_addr][request.payload.identifier] = now
 
@@ -3165,12 +3165,12 @@ class DispersyBootstrapServersStresstest(ScriptBase):
                 self._summary = {}
                 self._hostname = {}
                 self._identifiers = {}
-                self._candidates = candidates
+                self._pcandidates = candidates
                 self._queue = []
-                # self._candidates = self._dispersy._bootstrap_candidates.values()
-                # self._candidates = [BootstrapCandidate(("130.161.211.198", 6431))]
+                # self._pcandidates = self._dispersy._bootstrap_candidates.values()
+                # self._pcandidates = [BootstrapCandidate(("130.161.211.198", 6431))]
 
-                for candidate in self._candidates:
+                for candidate in self._pcandidates:
                     self._request[candidate.sock_addr] = {}
                     self._summary[candidate.sock_addr] = []
                     self._hostname[candidate.sock_addr] = socket.getfqdn(candidate.sock_addr[0])
@@ -3218,7 +3218,7 @@ class DispersyBootstrapServersStresstest(ScriptBase):
             def prepare_ping(self, member):
                 self._my_member = member
                 try:
-                    for candidate in self._candidates:
+                    for candidate in self._pcandidates:
                         request = self._dispersy.create_introduction_request(self, candidate, False, forward=False)
                         self._queue.append((request.payload.identifier, request.packet, candidate))
                 finally:
@@ -3234,7 +3234,7 @@ class DispersyBootstrapServersStresstest(ScriptBase):
             def ping(self, member):
                 self._my_member = member
                 try:
-                    for candidate in self._candidates:
+                    for candidate in self._pcandidates:
                         request = self._dispersy.create_introduction_request(self, candidate, False)
                         self._request[candidate.sock_addr][request.payload.identifier] = time()
                 finally:
