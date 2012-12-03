@@ -1451,15 +1451,20 @@ class Community(object):
 
             else: # ~.5%
                 for candidate in self._bootstrap_candidates:
-                    if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
-                    print >> sys.stderr, "yield walk_boot"
-                    yield candidate
+                    if candidate:
+                        if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+                        print >> sys.stderr, "yield walk_boot"
+                        yield candidate
+                    else:
+                        break
         
         for candidate in self._bootstrap_candidates:
             if candidate:
                 if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
                 print >> sys.stderr, "yield walk_boot"
                 yield candidate
+            else:
+                break
                 
         if __debug__: dprint("no candidates or bootstrap candidates available")
     
