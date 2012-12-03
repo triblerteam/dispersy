@@ -1293,6 +1293,7 @@ class Community(object):
         return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(self, now) and candidate.is_any_active(now))
 
     def _iter_category(self, category):
+        import sys
         while True:
             no_result = True
             
@@ -1307,14 +1308,11 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
                         no_result = False
+                        print >> sys.stderr, "yielding category", candidate
                         yield candidate
                         
                         keys = self._candidates.keys()
                         key_index = keys.index(key_value)
-                        
-                    elif category == candidate.get_category(self, time()):
-                        import sys
-                        print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time()) 
                         
                     key_index += 1
                         
@@ -1325,6 +1323,7 @@ class Community(object):
                 yield None
                 
     def _iter_categories(self, categories, once = False):
+        import sys
         while True:
             no_result = True
 
@@ -1339,6 +1338,7 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
                         no_result = False
+                        print >> sys.stderr, "yielding categories", candidate
                         yield candidate
                         
                         keys = self._candidates.keys()
@@ -1388,6 +1388,7 @@ class Community(object):
             result = self._iter_a_or_b(self._walked_candidates, self._stumbled_candidates)
             
             if prev_result == result:
+                print >> sys.stderr, "yielding random", None
                 yield None
             else:
                 prev_result = result
