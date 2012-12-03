@@ -20,19 +20,17 @@ class TestCandidates(unittest.TestCase):
         Dispersy.del_instance()
         
     def test_yield_random_candidates(self):
+        c = DebugCommunity.create_community(self.mm)
         candidates = []
         for i in range(5):
             address = ("127.0.0.1", i+1)
-            candidate = self.d.create_candidate(address, False, address, address, u"unknown")
+            candidate = c.create_candidate(address, False, address, address, u"unknown")
             candidates.append(candidate)
         
         now = time()
-        c = DebugCommunity.create_community(self.mm)
-        c2 = DebugCommunity.create_community(self.mm)
-        
         expected = [None, ("127.0.0.1", 1), ("127.0.0.1", 2), ("127.0.0.1", 3), ("127.0.0.1", 4)]
         got = []
-        
+
         for candidate in candidates:
             candidate.stumble(c, now)
 
@@ -43,7 +41,8 @@ class TestCandidates(unittest.TestCase):
         
         expected = [None, ("127.0.0.1", 5), ("127.0.0.1", 4), ("127.0.0.1", 3), ("127.0.0.1", 2)]
         got = []
-        
+
+        c2 = DebugCommunity.create_community(self.mm)        
         for candidate in reversed(candidates):
             candidate.stumble(c2, now)
             
@@ -62,7 +61,7 @@ class TestCandidates(unittest.TestCase):
         for i in range(5):
             address = ("127.0.0.1", i+1)
             
-            candidate = self.d.create_candidate(address, False, address, address, u"unknown")
+            candidate = c.create_candidate(address, False, address, address, u"unknown")
             candidate.stumble(c, now)
             candidate = c.dispersy_yield_random_candidates(candidate).next()
             got.append(candidate.lan_address if candidate else None)
@@ -70,12 +69,14 @@ class TestCandidates(unittest.TestCase):
         self.assertEquals(expected, got)
     
     def test_merge_candidates(self):
+        c = DebugCommunity.create_community(self.mm)
+        
         #let's make a list of all possible combinations which should be merged into one candidate
         candidates = []
-        candidates.append(self.d.create_candidate(("1.1.1.1", 1), False, ("192.168.0.1", 1), ("1.1.1.1", 1), u"unknown"))
-        candidates.append(self.d.create_candidate(("1.1.1.1", 2), False, ("192.168.0.1", 1), ("1.1.1.1", 2), u"symmetric-NAT"))
-        candidates.append(self.d.create_candidate(("1.1.1.1", 3), False, ("192.168.0.1", 1), ("1.1.1.1", 3), u"symmetric-NAT"))
-        candidates.append(self.d.create_candidate(("1.1.1.1", 4), False, ("192.168.0.1", 1), ("1.1.1.1", 4), u"unknown"))
+        candidates.append(c.create_candidate(("1.1.1.1", 1), False, ("192.168.0.1", 1), ("1.1.1.1", 1), u"unknown"))
+        candidates.append(c.create_candidate(("1.1.1.1", 2), False, ("192.168.0.1", 1), ("1.1.1.1", 2), u"symmetric-NAT"))
+        candidates.append(c.create_candidate(("1.1.1.1", 3), False, ("192.168.0.1", 1), ("1.1.1.1", 3), u"symmetric-NAT"))
+        candidates.append(c.create_candidate(("1.1.1.1", 4), False, ("192.168.0.1", 1), ("1.1.1.1", 4), u"unknown"))
         
         self.d._filter_duplicate_candidate(candidates[0])
         

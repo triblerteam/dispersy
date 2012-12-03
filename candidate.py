@@ -140,20 +140,22 @@ class WalkCandidate(Candidate):
     def merge(self, other):
         assert isinstance(other, WalkCandidate), other
         self._associations.update(other._associations)
+        
         for cid, timestamps in other._timestamps.iteritems():
             if cid in self._timestamps:
                 self._timestamps[cid].merge(timestamps)
             else:
                 self._timestamps[cid] = timestamps
+                
+                #TODO: this should be improved
+                from .dispersy import Dispersy
+                dispersy = Dispersy.get_instance()
+                community = dispersy._communities.get(cid, None)
+                community.add_candidate(self)
+                
         for cid, global_time in self._global_times.iteritems():
             self._global_times[cid] = max(self._global_times.get(cid, 0), global_time)
-            
-        if not isinstance(self, BootstrapCandidate) and len(self._timestamps) > 1:
-            from .dispersy import Dispersy
-            
-            _dispersy = Dispersy.get_instance()
-            _dispersy.statistics.total_candidates_overlapped += 1
-
+        
     def set_global_time(self, community, global_time):
         self._global_times[community.cid] = max(self._global_times.get(community.cid, 0), global_time)
 
@@ -345,6 +347,9 @@ class WalkCandidate(Candidate):
         timestamps = self._get_or_create_timestamps(community)
         timestamps.timeout_adjustment = timeout_adjustment
         timestamps.last_walk = now
+        
+        if not isinstance(self, BootstrapCandidate):
+            community.add_candidate(self)
 
     def walk_response(self, community):
         """
@@ -359,10 +364,7 @@ class WalkCandidate(Candidate):
         self._get_or_create_timestamps(community).last_stumble = now
         
         if not isinstance(self, BootstrapCandidate):
-            community._dispersy.statistics.total_candidates_discovered += 1
-            if len(self._timestamps) > 1:
-                community._dispersy.statistics.total_candidates_overlapped += 1
-                community._dispersy.statistics.dict_inc(community._dispersy.statistics.overlapping_stumble_candidates, str(self))
+            community.add_candidate(self)
 
     def intro(self, community, now):
         """
@@ -371,10 +373,7 @@ class WalkCandidate(Candidate):
         self._get_or_create_timestamps(community).last_intro = now
         
         if not isinstance(self, BootstrapCandidate):
-            community._dispersy.statistics.total_candidates_discovered += 1
-            if len(self._timestamps) > 1:
-                community._dispersy.statistics.total_candidates_overlapped += 1
-                community._dispersy.statistics.dict_inc(community._dispersy.statistics.overlapping_intro_candidates, str(self))
+            community.add_candidate(self)
 
     def update(self, tunnel, lan_address, wan_address, connection_type):
         assert isinstance(tunnel, bool)

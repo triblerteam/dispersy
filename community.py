@@ -11,9 +11,15 @@ Community instance.
 from hashlib import sha1
 from itertools import islice
 from math import ceil
-from random import random, Random, randint
+from random import random, Random, randint, shuffle
 from time import time
 from itertools import cycle
+
+try:
+    # python 2.7 only...
+    from collections import OrderedDict
+except ImportError:
+    from .python27_ordereddict import OrderedDict
 
 from .bloomfilter import BloomFilter
 from .conversion import BinaryConversion, DefaultConversion
@@ -27,6 +33,7 @@ from .resolution import PublicResolution, LinearResolution, DynamicResolution
 from .revision import update_revision_information
 from .statistics import CommunityStatistics
 from .timeline import Timeline
+from Tribler.dispersy.candidate import WalkCandidate
 
 # update version information directly from SVN
 update_revision_information("$HeadURL$", "$Revision$")
@@ -307,15 +314,19 @@ class Community(object):
         # random seed, used for sync range
         self._random = Random(self._cid)
         self._nrsyncpackets = 0
+        
+        #Initialize all the candidate iterators
+        self._candidates = OrderedDict()
+        self._walked_candidates = self._iter_category(u'walk')
+        self._stumbled_candidates = self._iter_category(u'stumble')
+        self._introduced_candidates = self._iter_category(u'intro')
+        
+        self._walk_candidates = self._iter_categories([u'walk', u'stumble', u'intro'])
+        self._bootstrap_candidates = self._iter_bootstrap()
 
         # statistics...
         self._statistics = CommunityStatistics(self)
         
-        #Initialize all the candidate iterators
-        self._walked_candidates = self._iter_category(u'walk')
-        self._stumbled_candidates = self._iter_category(u'stumble')
-        self._introduced_candidates = self._iter_category(u'intro')
-
     @property
     def statistics(self):
         """
@@ -1076,6 +1087,8 @@ class Community(object):
 
         @rtype: int or long
         """
+        now = time()
+        
         def acceptable_global_time_helper():
             options = sorted(global_time for global_time in (candidate.get_global_time(self) for candidate in self._dispersy.candidates if candidate.in_community(self, now) and candidate.is_any_active(now)) if global_time > 0)
 
@@ -1092,7 +1105,6 @@ class Community(object):
             return min(max(self._global_time, median_global_time) + self.dispersy_acceptable_global_time_range, 2**63-1)
 
         # get opinions from all active candidates
-        now = time()
         if self._acceptable_global_time_deadline < now:
             self._acceptable_global_time_cache = acceptable_global_time_helper()
             self._acceptable_global_time_deadline = now + 5.0
@@ -1273,28 +1285,31 @@ class Community(object):
     def dispersy_on_dynamic_settings(self, messages, initializing=False):
         return self._dispersy.on_dynamic_settings(self, messages, initializing)
 
-    @documentation(Dispersy.yield_candidates)
     def dispersy_yield_candidates(self):
-        return self._dispersy.yield_candidates(self)
+        """
+        Yields all active candidates that are part of COMMUNITY.
+        """
+        now = time()
+        return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(self, now) and candidate.is_any_active(now))
 
     def _iter_category(self, category):
         while True:
             no_result = True
             
-            keys = self._dispersy._candidates.keys()
+            keys = self._candidates.keys()
             key_index = 0
             key_value = None
 
             while True:
                 try:
                     key_value = keys[key_index]
-                    candidate = self._dispersy._candidates[key_value]
+                    candidate = self._candidates[key_value]
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
                         no_result = False
                         yield candidate
                         
-                        keys = self._dispersy._candidates.keys()
+                        keys = self._candidates.keys()
                         key_index = keys.index(key_value)
                         
                     elif category == candidate.get_category(self, time()):
@@ -1309,29 +1324,25 @@ class Community(object):
             if no_result:
                 yield None
                 
-    def _iter_categories(self, categories):
+    def _iter_categories(self, categories, once = False):
         while True:
             no_result = True
 
-            keys = self._dispersy._candidates.keys()
+            keys = self._candidates.keys()
             key_index = 0
             key_value = None
             
             while True:
                 try:
                     key_value = keys[key_index]
-                    candidate = self._dispersy._candidates[key_value]
+                    candidate = self._candidates[key_value]
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
                         no_result = False
                         yield candidate
                         
-                        keys = self._dispersy._candidates.keys()
+                        keys = self._candidates.keys()
                         key_index = keys.index(key_value)
-                        
-                    elif candidate.get_category(self, time()) in categories:
-                        import sys
-                        print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time())
                         
                     key_index += 1
                         
@@ -1340,24 +1351,40 @@ class Community(object):
                     
             if no_result:
                 yield None
+            
+            if once:
+                break
+                
+    def _iter_bootstrap(self):
+        while True:
+            no_result = True
+            
+            bootstrap_candidates = list(self._dispersy.bootstrap_candidates)
+            for candidate in bootstrap_candidates:
+                if candidate.in_community(self, time()) and candidate.is_eligible_for_walk(self, time()):
+                    no_result = False
+                    yield candidate
+                    
+            if no_result:
+                yield None
+                    
+    def _iter_a_or_b(self, a, b):
+        r = random()            
+        result = a.next() if r <= .5 else b.next()
+        if not result:
+            result = b.next() if r <= .5 else a.next()
+        return result
     
     def dispersy_yield_random_candidates(self, candidate = None):
         """
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
-        assert all(not sock_address in self._dispersy._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
+        assert all(not sock_address in self._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
         
         prev_result = None
         while True:
-            result = None
-            r = random()
-            if r <= .5:
-                result = self._walked_candidates.next()
-            if not result:
-                result = self._stumbled_candidates.next()
-            if not result and r > .5:
-                result = self._walked_candidates.next()
-    
+            result = self._iter_a_or_b(self._walked_candidates, self._stumbled_candidates)
+            
             if prev_result == result:
                 yield None
             else:
@@ -1367,9 +1394,80 @@ class Community(object):
                 
                 yield result
 
-    @documentation(Dispersy.yield_walk_candidates)
     def dispersy_yield_walk_candidates(self):
-        return self._dispersy.yield_walk_candidates(self)
+        """
+        Yields a mixture of all candidates that we could get our hands on that are part of
+        COMMUNITY.
+        """
+        # TODO we can optimize by not doing all the sorting until we select where we want to pick a
+        # node.  since we always just need one candidate the other sorts would be useless
+
+        # 13/02/12 Boudewijn: normal peers can not be visited multiple times within 30 seconds,
+        # bootstrap peers can not be visited multiple times within 55 seconds.  this is handled by
+        # the Candidate.is_eligible_for_walk(...) method
+        now = time()
+        categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
+        for candidate in self._candidates:
+            if isinstance(candidate, WalkCandidate) and candidate.is_eligible_for_walk(self, now):
+                categories[candidate.get_category(self, now)].append(candidate)
+
+        walks = sorted(categories[u"walk"], key=lambda candidate: candidate.last_walk(self))
+        stumbles = sorted(categories[u"stumble"], key=lambda candidate: candidate.last_stumble(self))
+        intros = sorted(categories[u"intro"], key=lambda candidate: candidate.last_intro(self))
+
+        while walks or stumbles or intros:
+            r = random()
+
+            # 13/02/12 Boudewijn: we decrease the 1% chance to contact a bootstrap peer to .5%
+            if r <= .4975: # ~50%
+                if walks:
+                    if __debug__: dprint("yield [%2d:%2d:%2d walk   ] " % (len(walks), len(stumbles), len(intros)), walks[0])
+                    yield walks.pop(0)
+
+            elif r <= .995: # ~50%
+                if stumbles or intros:
+                    while True:
+                        if random() <= .5:
+                            if stumbles:
+                                if __debug__: dprint("yield [%2d:%2d:%2d stumble] " % (len(walks), len(stumbles), len(intros)), stumbles[0])
+                                yield stumbles.pop(0)
+                                break
+
+                        else:
+                            if intros:
+                                if __debug__: dprint("yield [%2d:%2d:%2d intro  ] " % (len(walks), len(stumbles), len(intros)), intros[0])
+                                yield intros.pop(0)
+                                break
+
+            else: # ~.5%
+                for candidate in self._bootstrap_candidates:
+                    if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+                    yield candidate
+        
+        for candidate in self._bootstrap_candidates:
+            if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+            yield candidate
+                
+        if __debug__: dprint("no candidates or bootstrap candidates available")
+    
+    def create_candidate(self, sock_addr, tunnel, lan_address, wan_address, connection_type):
+        """
+        Creates and returns a new WalkCandidate instance.
+        """
+        assert not sock_addr in self._candidates
+        assert isinstance(tunnel, bool)
+        self._candidates[sock_addr] = candidate = WalkCandidate(sock_addr, tunnel, lan_address, wan_address, connection_type)
+        if __debug__: dprint(candidate)
+        return candidate
+    
+    def add_candidate(self, candidate):
+        assert candidate.sock_addr not in self._dispersy._bootstrap_candidates.iterkeys(), "none of the bootstrap candidates may be in self._candidates"
+        self._candidates[candidate.sock_addr] = candidate
+        
+        self._dispersy.statistics.total_candidates_discovered += 1
+        if len(candidate._timestamps) > 1:
+            self._dispersy.statistics.total_candidates_overlapped += 1
+            self._dispersy.statistics.dict_inc(self._dispersy.statistics.overlapping_stumble_candidates, str(self))
 
     def dispersy_cleanup_community(self, message):
         """

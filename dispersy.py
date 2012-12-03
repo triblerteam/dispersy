@@ -40,12 +40,6 @@ import os
 import sys
 import netifaces
 
-try:
-    # python 2.7 only...
-    from collections import OrderedDict
-except ImportError:
-    from .python27_ordereddict import OrderedDict
-
 from hashlib import sha1
 from itertools import groupby, islice, count, cycle
 from random import random, shuffle
@@ -219,6 +213,37 @@ class MissingSequenceCache(MissingSomethingCache):
     @staticmethod
     def message_to_identifier(message):
         return "-missing-sequence-%s-%s-%s-%d-" % (message.community.cid, message.authentication.member.mid, message.name.encode("UTF-8"), message.distribution.sequence_number)
+    
+class GlobalCandidateCache():
+    def __init__(self, dispersy):
+        self._dispersy = dispersy
+        
+    def __contains__(self, item):
+        for community in self._dispersy._communities.itervalues():
+            if item in community._candidates:
+                return True
+        
+    def __delitem__(self, item):
+        for community in self._dispersy._communities.itervalues():
+            if item in community._candidates:
+                del community._candidates[item]
+    
+    def iteritems(self):
+        for community in self._dispersy._communities.itervalues():
+            for key, value in community._candidates.iteritems():
+                yield key, value
+                
+    def itervalues(self):
+        for community in self._dispersy._communities.itervalues():
+            for value in community._candidates.itervalues():
+                yield value
+                
+    def get(self, item, default=None):
+        for community in self._dispersy._communities.itervalues():
+            if item in community._candidates:
+                return community._candidates[item]
+        
+        return default
 
 class Dispersy(Singleton):
     """
@@ -267,7 +292,7 @@ class Dispersy(Singleton):
 
         # peer selection candidates.  address:Candidate pairs (where
         # address is obtained from socket.recv_from)
-        self._candidates = OrderedDict()
+        self._candidates = GlobalCandidateCache(self)
         self._callback.register(self._periodically_cleanup_candidates)
 
         # assigns temporary cache objects to unique identifiers
@@ -998,8 +1023,7 @@ class Dispersy(Singleton):
                 # our address may not be a candidate
                 if self._wan_address in self._candidates:
                     del self._candidates[self._wan_address]
-                for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
-                    del self._candidates[sock_addr]
+
             for sock_addr in [sock_addr for sock_addr, candidate in self._candidates.iteritems() if self._wan_address == candidate.wan_address]:
                 del self._candidates[sock_addr]
 
@@ -1484,16 +1508,6 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
                 # no symmetric NAT candidate found
                 candidate = None
 
-        return candidate
-
-    def create_candidate(self, sock_addr, tunnel, lan_address, wan_address, connection_type):
-        """
-        Creates and returns a new WalkCandidate instance.
-        """
-        assert not sock_addr in self._candidates
-        assert isinstance(tunnel, bool)
-        self._candidates[sock_addr] = candidate = WalkCandidate(sock_addr, tunnel, lan_address, wan_address, connection_type)
-        if __debug__: dprint(candidate)
         return candidate
 
     def _filter_duplicate_candidate(self, candidate):
@@ -2121,86 +2135,10 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
     @property
     def candidates(self):
         return self._candidates.itervalues()
-
-    def yield_candidates(self, community):
-        """
-        Yields all active candidates that are part of COMMUNITY.
-        """
-        if __debug__:
-            from .community import Community
-        assert isinstance(community, Community)
-        now = time()
-        return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(community, now) and candidate.is_any_active(now))
-
-    def yield_walk_candidates(self, community):
-        """
-        Yields a mixture of all candidates that we could get our hands on that are part of
-        COMMUNITY.
-        """
-        if __debug__:
-            from .community import Community
-        assert isinstance(community, Community)
-
-        # TODO we can optimize by not doing all the sorting until we select where we want to pick a
-        # node.  since we always just need one candidate the other sorts would be useless
-
-        # 13/02/12 Boudewijn: normal peers can not be visited multiple times within 30 seconds,
-        # bootstrap peers can not be visited multiple times within 55 seconds.  this is handled by
-        # the Candidate.is_eligible_for_walk(...) method
-
-        # TODO we can further optimize by not collecting the bootstrap_candidates until we need one
-        # of those
-
-        now = time()
-        bootstrap_candidates = [candidate
-                                for candidate
-                                in self._bootstrap_candidates.itervalues()
-                                if candidate.in_community(community, now) and candidate.is_eligible_for_walk(community, now)]
-        shuffle(bootstrap_candidates)
-        assert all(isinstance(candidate, WalkCandidate) for candidate in bootstrap_candidates)
-
-        categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
-        for candidate in self._candidates.itervalues():
-            if isinstance(candidate, WalkCandidate) and candidate.in_community(community, now) and candidate.is_eligible_for_walk(community, now):
-                categories[candidate.get_category(community, now)].append(candidate)
-
-        walks = sorted(categories[u"walk"], key=lambda candidate: candidate.last_walk(community))
-        stumbles = sorted(categories[u"stumble"], key=lambda candidate: candidate.last_stumble(community))
-        intros = sorted(categories[u"intro"], key=lambda candidate: candidate.last_intro(community))
-
-        while walks or stumbles or intros:
-            r = random()
-
-            # 13/02/12 Boudewijn: we decrease the 1% chance to contact a bootstrap peer to .5%
-            if r <= .4975: # ~50%
-                if walks:
-                    if __debug__: dprint("yield [%2d:%2d:%2d:%2d walk   ] " % (len(walks), len(stumbles), len(intros), len(bootstrap_candidates)), walks[0])
-                    yield walks.pop(0)
-
-            elif r <= .995: # ~50%
-                if stumbles or intros:
-                    while True:
-                        if random() <= .5:
-                            if stumbles:
-                                if __debug__: dprint("yield [%2d:%2d:%2d:%2d stumble] " % (len(walks), len(stumbles), len(intros), len(bootstrap_candidates)), stumbles[0])
-                                yield stumbles.pop(0)
-                                break
-
-                        else:
-                            if intros:
-                                if __debug__: dprint("yield [%2d:%2d:%2d:%2d intro  ] " % (len(walks), len(stumbles), len(intros), len(bootstrap_candidates)), intros[0])
-                                yield intros.pop(0)
-                                break
-
-            elif bootstrap_candidates: # ~.5%
-                if __debug__: dprint("yield [%2d:%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros), len(bootstrap_candidates)), bootstrap_candidates[0])
-                yield bootstrap_candidates.pop(0)
-
-        while bootstrap_candidates:
-            if __debug__: dprint("yield [%2d:%2d:%2d:%2d bootstr] (no regular candidates available)" % (len(walks), len(stumbles), len(intros), len(bootstrap_candidates)), bootstrap_candidates[0])
-            yield bootstrap_candidates.pop(0)
-
-        if __debug__: dprint("no candidates or bootstrap candidates available")
+    
+    @property
+    def bootstrap_candidates(self):
+        return self._bootstrap_candidates.itervalues()
 
     def _estimate_lan_and_wan_addresses(self, sock_addr, lan_address, wan_address):
         """
@@ -2254,6 +2192,8 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
         if community.cid in self._communities:
             try:
                 candidate = community.dispersy_yield_walk_candidates().next()
+                if candidate == None:
+                    raise StopIteration()
 
             except StopIteration:
                 if __debug__:
@@ -2437,7 +2377,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             if isinstance(message.candidate, WalkCandidate):
                 candidate = message.candidate
             else:
-                candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
+                candidate = community.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
                 message._candidate = candidate
 
             # apply vote to determine our WAN address
@@ -2578,7 +2518,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 candidate = message.candidate
                 candidate.update(candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
             else:
-                candidate = self.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
+                candidate = community.create_candidate(message.candidate.sock_addr, message.candidate.tunnel, source_lan_address, source_wan_address, payload.connection_type)
 
             # until we implement a proper 3-way handshake we are going to assume that the creator of
             # this message is associated to this candidate
@@ -2613,7 +2553,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     # create candidate but set its state to inactive to ensure that it will not be
                     # used.  note that we call candidate.intro to allow the candidate to be returned
                     # by yield_walk_candidates
-                    candidate = self.create_candidate(sock_introduction_addr, payload.tunnel, lan_introduction_address, wan_introduction_address, u"unknown")
+                    candidate = community.create_candidate(sock_introduction_addr, payload.tunnel, lan_introduction_address, wan_introduction_address, u"unknown")
                     candidate.inactive(community, now)
 
                 # reset the 'I have been introduced' timer
@@ -2717,7 +2657,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                     # create candidate but set its state to inactive to ensure that it will not be
                     # used.  note that we call candidate.intro to allow the candidate to be returned
                     # by yield_walk_candidates
-                    candidate = self.create_candidate(sock_addr, message.candidate.tunnel, lan_address, wan_address, u"unknown")
+                    candidate = community.create_candidate(sock_addr, message.candidate.tunnel, lan_address, wan_address, u"unknown")
                     candidate.inactive(community, now)
 
                 else:
