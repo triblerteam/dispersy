@@ -980,7 +980,7 @@ class Dispersy(Singleton):
         assert len(address) == 2
         assert isinstance(address[0], str)
         assert isinstance(address[1], int)
-        assert isinstance(voter, Candidate)
+        assert isinstance(voter, Candidate), type(voter)
         if self._wan_address[0] in (voter.wan_address[0], voter.sock_addr[0]):
             if __debug__: dprint("ignoring vote from candidate on the same LAN")
             return
