@@ -147,6 +147,12 @@ class WalkCandidate(Candidate):
                 self._timestamps[cid] = timestamps
         for cid, global_time in self._global_times.iteritems():
             self._global_times[cid] = max(self._global_times.get(cid, 0), global_time)
+            
+        if not isinstance(self, BootstrapCandidate) and len(self._timestamps) > 1:
+            from .dispersy import Dispersy
+            
+            _dispersy = Dispersy.get_instance()
+            _dispersy.statistics.total_candidates_overlapped += 1
 
     def set_global_time(self, community, global_time):
         self._global_times[community.cid] = max(self._global_times.get(community.cid, 0), global_time)
@@ -351,12 +357,22 @@ class WalkCandidate(Candidate):
         Called when we receive an introduction-request from this candidate.
         """
         self._get_or_create_timestamps(community).last_stumble = now
+        
+        if not isinstance(self, BootstrapCandidate):
+            community._dispersy.statistics.total_candidates_discovered += 1
+            if len(self._timestamps) > 1:
+                community._dispersy.statistics.total_candidates_overlapped += 1
 
     def intro(self, community, now):
         """
         Called when we receive an introduction-response introducing this candidate.
         """
         self._get_or_create_timestamps(community).last_intro = now
+        
+        if not isinstance(self, BootstrapCandidate):
+            community._dispersy.statistics.total_candidates_discovered += 1
+            if len(self._timestamps) > 1:
+                community._dispersy.statistics.total_candidates_overlapped += 1
 
     def update(self, tunnel, lan_address, wan_address, connection_type):
         assert isinstance(tunnel, bool)

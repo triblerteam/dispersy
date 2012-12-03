@@ -39,11 +39,9 @@ class DispersyStatistics(Statistics):
         
         # nr messages which were received, but delayed
         self.delay_count = 0
-        
         # nr delay success and timeout (success + timeout) != count, as some messages are in between
         self.delay_success = 0
         self.delay_timeout = 0
-        
         # nr delay messages being send
         self.delay_send = 0
         
@@ -54,7 +52,14 @@ class DispersyStatistics(Statistics):
         self.total_down = 0
         self.total_up = 0
         self.total_send = 0
+        
+        # size of the sendqueue
         self.cur_sendqueue = 0
+        
+        # nr of candidates introduced/stumbled upon
+        self.total_candidates_discovered = 0
+        # nr of times a candidate was known in another community
+        self.total_candidates_overlapped = 0
         
         self.walk_attempt = 0
         self.walk_success = 0
