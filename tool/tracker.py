@@ -195,17 +195,19 @@ class TrackerCommunity(Community):
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
         assert all(not sock_address in self._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
-
+        import sys
         prev_result = None
         while True:
             result = self._walked_stumbled_candidates.next() 
             if prev_result == result:
+                print >> sys.stderr, "yielding random", None
                 yield None
                 
             else:
                 prev_result = result
                 if result == candidate:
                     continue
+                print >> sys.stderr, "yielding random", result
                 yield result
 
 class TrackerDispersy(Dispersy):
@@ -271,7 +273,7 @@ class TrackerDispersy(Dispersy):
             for candidate, packet in packets:
                 cid = packet[2:22]
 
-                if not cid in self._communities and candidate.sock_addr[0] in self._non_autoload:
+                if not cid in self._communities and False:#candidate.sock_addr[0] in self._non_autoload:
                     if __debug__:
                         dprint("drop a ", len(packet), " byte packet (received from non-autoload node) from ", candidate, level="warning", force=1)
                         self._statistics.dict_inc(self._statistics.drop, "_convert_packets_into_batch:from bootstrap node for unloaded community")
