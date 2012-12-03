@@ -1294,6 +1294,9 @@ class Community(object):
                         no_result = False
                         yield candidate
                         
+                        keys = self._dispersy._candidates.keys()
+                        key_index = keys.index(key_value)
+                        
                     elif category == candidate.get_category(self, time()):
                         import sys
                         print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time()) 
@@ -1301,9 +1304,7 @@ class Community(object):
                     key_index += 1
                         
                 except IndexError:
-                    keys = self._dispersy._candidates.keys()
-                    if key_index >= len(keys):
-                        break
+                    break
             
             if no_result:
                 yield None
@@ -1325,6 +1326,9 @@ class Community(object):
                         no_result = False
                         yield candidate
                         
+                        keys = self._dispersy._candidates.keys()
+                        key_index = keys.index(key_value)
+                        
                     elif candidate.get_category(self, time()) in categories:
                         import sys
                         print >> sys.stderr, candidate.in_community(self, time()), candidate.is_any_active(time())
@@ -1332,9 +1336,7 @@ class Community(object):
                     key_index += 1
                         
                 except IndexError:
-                    keys = self._dispersy._candidates.keys()
-                    if key_index >= len(keys):
-                        break
+                    break
                     
             if no_result:
                 yield None
