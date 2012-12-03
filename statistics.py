@@ -86,6 +86,8 @@ class DispersyStatistics(Statistics):
                 self.endpoint_recv = {}
                 self.endpoint_send = {}
                 self.bootstrap_candidates = {}
+                self.overlapping_stumble_candidates = {}
+                self.overlapping_intro_candidates = {}
             else:
                 self.drop = None
                 self.delay = None
@@ -98,6 +100,8 @@ class DispersyStatistics(Statistics):
                 self.endpoint_recv = None
                 self.endpoint_send = None
                 self.bootstrap_candidates = None
+                self.overlapping_stumble_candidates = None
+                self.overlapping_intro_candidates = None
                 
     def are_debug_statistics_enabled(self):
         return getattr(self, 'drop', None) != None
@@ -152,6 +156,8 @@ class DispersyStatistics(Statistics):
             self.endpoint_recv = {}
             self.endpoint_send = {}
             self.bootstrap_candidates = {}
+            self.overlapping_stumble_candidates = {}
+            self.overlapping_intro_candidates = {}
 
 class CommunityStatistics(Statistics):
     def __init__(self, community):

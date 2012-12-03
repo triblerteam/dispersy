@@ -362,6 +362,7 @@ class WalkCandidate(Candidate):
             community._dispersy.statistics.total_candidates_discovered += 1
             if len(self._timestamps) > 1:
                 community._dispersy.statistics.total_candidates_overlapped += 1
+                community._dispersy.statistics.dict_inc(community._dispersy.statistics.overlapping_stumble_candidates, str(self))
 
     def intro(self, community, now):
         """
@@ -373,6 +374,7 @@ class WalkCandidate(Candidate):
             community._dispersy.statistics.total_candidates_discovered += 1
             if len(self._timestamps) > 1:
                 community._dispersy.statistics.total_candidates_overlapped += 1
+                community._dispersy.statistics.dict_inc(community._dispersy.statistics.overlapping_intro_candidates, str(self))
 
     def update(self, tunnel, lan_address, wan_address, connection_type):
         assert isinstance(tunnel, bool)
