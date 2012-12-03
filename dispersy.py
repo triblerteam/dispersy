@@ -1539,7 +1539,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         for other in others:
             # all except for the CANDIDATE
             if not other == candidate:
-                if __debug__: dprint("removing ", other, " in favor or ", candidate)
+                if __debug__: dprint("removing ", other, " in favor or ", candidate, force = 1)
                 candidate.merge(other)
                 del self._candidates[other.sock_addr]
                 self.wan_address_unvote(other)
@@ -2566,7 +2566,7 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 # reset the 'I have been introduced' timer
                 candidate.intro(community, now)
                 self._filter_duplicate_candidate(candidate)
-                if __debug__: dprint("received introduction to ", candidate)
+                if __debug__: dprint("received introduction to ", candidate, force = 1)
                 
                 cache.response_candidate = candidate
                 

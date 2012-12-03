@@ -1482,6 +1482,9 @@ class Community(object):
         assert candidate.sock_addr not in self._dispersy._bootstrap_candidates.iterkeys(), "none of the bootstrap candidates may be in self._candidates"
         self._candidates[candidate.sock_addr] = candidate
         
+        import sys
+        print >> sys.stderr, "new candidate", candidate
+        
         self._dispersy.statistics.total_candidates_discovered += 1
         if len(candidate._timestamps) > 1:
             self._dispersy.statistics.total_candidates_overlapped += 1
