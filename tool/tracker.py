@@ -318,6 +318,10 @@ class TrackerDispersy(Dispersy):
             print "BANDWIDTH", self._endpoint.total_up, self._endpoint.total_down
             print "COMMUNITY", mapping[TrackerCommunity], mapping[TrackerHardKilledCommunity]
             print "CANDIDATE", len(self._candidates)
+            
+            if self._statistics.outgoing:
+                for key, value in self._statistics.outgoing.iteritems():
+                    print "OUTGOING", key, value
 
     def create_introduction_request(self, destination, allow_sync, forward=True):
         # prevent steps towards other trackers
