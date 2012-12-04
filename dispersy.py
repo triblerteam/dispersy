@@ -2311,9 +2311,9 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
         if __debug__:
             if sync:
                 time_low, time_high, modulo, offset, _ = sync
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
+                dprint(community.cid.encode("HEX"), " ", type(community), " sending introduction request to ", destination, " [", time_low, ":", time_high, "] %", modulo, "+", offset)
             else:
-                dprint(community.cid.encode("HEX"), " sending introduction request to ", destination)
+                dprint(community.cid.encode("HEX"), " ", type(community), " sending introduction request to ", destination)
                 
         if forward:
             self._statistics.walk_attempt += 1
@@ -2418,7 +2418,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 introduced = None
 
             if introduced:
-                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists")
+                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists ", type(community))
 
                 # create introduction response
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, introduced.lan_address, introduced.wan_address, self._connection_type, introduced.tunnel, payload.identifier)))
@@ -2427,7 +2427,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 requests.append(meta_puncture_request.impl(distribution=(community.global_time,), destination=(introduced,), payload=(source_lan_address, source_wan_address, payload.identifier)))
 
             else:
-                if __debug__: dprint("responding to ", candidate, " without an introduction")
+                if __debug__: dprint("responding to ", candidate, " without an introduction ", type(community))
 
                 none = ("0.0.0.0", 0)
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, none, none, self._connection_type, False, payload.identifier)))

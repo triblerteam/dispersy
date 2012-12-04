@@ -1351,7 +1351,7 @@ class Community(object):
             if once:
                 break
                 
-    def _iter_bootstrap(self):
+    def _iter_bootstrap(self, once = False):
         while True:
             no_result = True
             
@@ -1363,6 +1363,9 @@ class Community(object):
                     
             if no_result:
                 yield None
+                
+            if once:
+                break
                     
     def _iter_a_or_b(self, a, b):
         r = random()            
@@ -1441,7 +1444,10 @@ class Community(object):
                     if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
                     yield candidate
         
-        for candidate in self._iter_bootstrap():
+        bootstrap_candidates = list(self._iter_bootstrap(once = True))
+        shuffle(bootstrap_candidates)
+        
+        for candidate in bootstrap_candidates:
             if candidate:
                 if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
             yield candidate
