@@ -1450,23 +1450,18 @@ class Community(object):
                                 break
 
             else: # ~.5%
-                for candidate in self._bootstrap_candidates:
-                    if candidate:
-                        if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
-                        print >> sys.stderr, "yield walk_boot1"
-                        yield candidate
-                    else:
-                        break
+                candidate = self._bootstrap_candidates.next()
+                if candidate:
+                    if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
+                    print >> sys.stderr, "yield walk_boot1"
+                    yield candidate
         
-        for candidate in self._bootstrap_candidates:
+        for candidate in self._iter_bootstrap():
             if candidate:
                 if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
                 print >> sys.stderr, "yield walk_boot2"
-                yield candidate
-            else:
-                yield None
-                break
-                
+            yield candidate
+            
         if __debug__: dprint("no candidates or bootstrap candidates available")
     
     def create_candidate(self, sock_addr, tunnel, lan_address, wan_address, connection_type):
