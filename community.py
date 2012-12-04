@@ -1414,7 +1414,7 @@ class Community(object):
         
         now = time()
         categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
-        for candidate in self._candidates:
+        for candidate in self._candidates.itervalues():
             if isinstance(candidate, WalkCandidate) and candidate.is_eligible_for_walk(self, now):
                 categories[candidate.get_category(self, now)].append(candidate)
 
