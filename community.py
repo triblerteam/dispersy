@@ -632,7 +632,7 @@ class Community(object):
         if from_gbtime < 1:
             from_gbtime = int(self._random.random() * self.global_time)
 
-        import sys
+        #import sys
         #print >> sys.stderr, "Pivot", from_gbtime
 
         mostRecent = False
@@ -1293,7 +1293,6 @@ class Community(object):
         return (candidate for candidate in self._candidates.itervalues() if candidate.in_community(self, now) and candidate.is_any_active(now))
 
     def _iter_category(self, category):
-        import sys
         while True:
             no_result = True
             
@@ -1308,7 +1307,6 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and category == candidate.get_category(self, time()):
                         no_result = False
-                        print >> sys.stderr, "yielding category", candidate
                         yield candidate
                         
                         keys = self._candidates.keys()
@@ -1323,7 +1321,6 @@ class Community(object):
                 yield None
                 
     def _iter_categories(self, categories, once = False):
-        import sys
         while True:
             no_result = True
 
@@ -1338,7 +1335,6 @@ class Community(object):
                     
                     if candidate.in_community(self, time()) and candidate.is_any_active(time()) and candidate.get_category(self, time()) in categories:
                         no_result = False
-                        print >> sys.stderr, "yielding categories", candidate
                         yield candidate
                         
                         keys = self._candidates.keys()
@@ -1356,7 +1352,6 @@ class Community(object):
                 break
                 
     def _iter_bootstrap(self):
-        import sys
         while True:
             no_result = True
             
@@ -1364,11 +1359,9 @@ class Community(object):
             for candidate in bootstrap_candidates:
                 if candidate.in_community(self, time()) and candidate.is_eligible_for_walk(self, time()):
                     no_result = False
-                    print >> sys.stderr, "yielding bootstrap", candidate
                     yield candidate
                     
             if no_result:
-                print >> sys.stderr, "yielding bootstrap", None
                 yield None
                     
     def _iter_a_or_b(self, a, b):
@@ -1383,20 +1376,17 @@ class Community(object):
         Yields unique active candidates that are part of COMMUNITY in Round Robin (Not random anymore).
         """
         assert all(not sock_address in self._candidates for sock_address in self._dispersy._bootstrap_candidates.iterkeys()), "none of the bootstrap candidates may be in self._candidates"
-        import sys
         prev_result = None
         while True:
             result = self._iter_a_or_b(self._walked_candidates, self._stumbled_candidates)
             
             if prev_result == result:
-                print >> sys.stderr, "yielding random", None
                 yield None
             else:
                 prev_result = result
                 if result == candidate:
                     continue
                 
-                print >> sys.stderr, "yielding random", result
                 yield result
 
     def dispersy_yield_walk_candidates(self):
@@ -1410,7 +1400,6 @@ class Community(object):
         # 13/02/12 Boudewijn: normal peers can not be visited multiple times within 30 seconds,
         # bootstrap peers can not be visited multiple times within 55 seconds.  this is handled by
         # the Candidate.is_eligible_for_walk(...) method
-        import sys
         
         now = time()
         categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
@@ -1429,7 +1418,6 @@ class Community(object):
             if r <= .4975: # ~50%
                 if walks:
                     if __debug__: dprint("yield [%2d:%2d:%2d walk   ] " % (len(walks), len(stumbles), len(intros)), walks[0])
-                    print >> sys.stderr, "yield walk"
                     yield walks.pop(0)
 
             elif r <= .995: # ~50%
@@ -1438,14 +1426,12 @@ class Community(object):
                         if random() <= .5:
                             if stumbles:
                                 if __debug__: dprint("yield [%2d:%2d:%2d stumble] " % (len(walks), len(stumbles), len(intros)), stumbles[0])
-                                print >> sys.stderr, "yield stumble"
                                 yield stumbles.pop(0)
                                 break
 
                         else:
                             if intros:
                                 if __debug__: dprint("yield [%2d:%2d:%2d intro  ] " % (len(walks), len(stumbles), len(intros)), intros[0])
-                                print >> sys.stderr, "yield intro"
                                 yield intros.pop(0)
                                 break
 
@@ -1453,13 +1439,11 @@ class Community(object):
                 candidate = self._bootstrap_candidates.next()
                 if candidate:
                     if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
-                    print >> sys.stderr, "yield walk_boot1"
                     yield candidate
         
         for candidate in self._iter_bootstrap():
             if candidate:
                 if __debug__: dprint("yield [%2d:%2d:%2d bootstr] " % (len(walks), len(stumbles), len(intros)), candidate)
-                print >> sys.stderr, "yield walk_boot2"
             yield candidate
             
         if __debug__: dprint("no candidates or bootstrap candidates available")
@@ -1482,9 +1466,6 @@ class Community(object):
         if candidate.sock_addr not in self._candidates:
             self._candidates[candidate.sock_addr] = candidate
             
-            import sys
-            print >> sys.stderr, "new candidate", candidate
-        
             self._dispersy.statistics.total_candidates_discovered += 1
             if len(candidate._timestamps) > 1:
                 self._dispersy.statistics.total_candidates_overlapped += 1

@@ -2399,7 +2399,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
             candidate.stumble(community, now)
             # candidate.active(community, now)
             self._filter_duplicate_candidate(candidate)
-            if __debug__: dprint("received introduction request from ", candidate, force = 1)
+            if __debug__: dprint("received introduction request from ", candidate)
             
             if payload.advice:
                 for introduced in community.dispersy_yield_random_candidates(candidate):
@@ -2417,7 +2417,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 introduced = None
 
             if introduced:
-                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists", force = 1)
+                if __debug__: dprint("telling ", candidate, " that ", introduced, " exists")
 
                 # create introduction response
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, introduced.lan_address, introduced.wan_address, self._connection_type, introduced.tunnel, payload.identifier)))
@@ -2426,7 +2426,7 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
                 requests.append(meta_puncture_request.impl(distribution=(community.global_time,), destination=(introduced,), payload=(source_lan_address, source_wan_address, payload.identifier)))
 
             else:
-                if __debug__: dprint("responding to ", candidate, " without an introduction", force = 1)
+                if __debug__: dprint("responding to ", candidate, " without an introduction")
 
                 none = ("0.0.0.0", 0)
                 responses.append(meta_introduction_response.impl(authentication=(community.my_member,), distribution=(community.global_time,), destination=(candidate,), payload=(candidate.get_destination_address(self._wan_address), self._lan_address, self._wan_address, none, none, self._connection_type, False, payload.identifier)))
@@ -2559,14 +2559,14 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 if candidate is None:
                     # create candidate but set its state to inactive to ensure that it will not be
                     # used.  note that we call candidate.intro to allow the candidate to be returned
-                    # by yield_walk_candidates
+                    # by yield_walk_candidates and yield_candidates
                     candidate = community.create_candidate(sock_introduction_addr, payload.tunnel, lan_introduction_address, wan_introduction_address, u"unknown")
                     candidate.inactive(community, now)
 
                 # reset the 'I have been introduced' timer
                 candidate.intro(community, now)
                 self._filter_duplicate_candidate(candidate)
-                if __debug__: dprint("received introduction to ", candidate, force = 1)
+                if __debug__: dprint("received introduction to ", candidate)
                 
                 cache.response_candidate = candidate
                 
