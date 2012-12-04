@@ -1415,7 +1415,7 @@ class Community(object):
         now = time()
         categories = {u"walk":[], u"stumble":[], u"intro":[], u"none":[]}
         for candidate in self._candidates.itervalues():
-            if isinstance(candidate, WalkCandidate) and candidate.is_eligible_for_walk(self, now):
+            if candidate.is_eligible_for_walk(self, now):
                 categories[candidate.get_category(self, now)].append(candidate)
 
         walks = sorted(categories[u"walk"], key=lambda candidate: candidate.last_walk(self))
@@ -1470,21 +1470,25 @@ class Community(object):
         """
         assert not sock_addr in self._candidates
         assert isinstance(tunnel, bool)
-        self._candidates[sock_addr] = candidate = WalkCandidate(sock_addr, tunnel, lan_address, wan_address, connection_type)
+        candidate = WalkCandidate(sock_addr, tunnel, lan_address, wan_address, connection_type)
+        self.add_candidate(candidate)
+        
         if __debug__: dprint(candidate)
         return candidate
     
     def add_candidate(self, candidate):
         assert candidate.sock_addr not in self._dispersy._bootstrap_candidates.iterkeys(), "none of the bootstrap candidates may be in self._candidates"
-        self._candidates[candidate.sock_addr] = candidate
         
-        import sys
-        print >> sys.stderr, "new candidate", candidate
+        if candidate.sock_addr not in self._candidates:
+            self._candidates[candidate.sock_addr] = candidate
+            
+            import sys
+            print >> sys.stderr, "new candidate", candidate
         
-        self._dispersy.statistics.total_candidates_discovered += 1
-        if len(candidate._timestamps) > 1:
-            self._dispersy.statistics.total_candidates_overlapped += 1
-            self._dispersy.statistics.dict_inc(self._dispersy.statistics.overlapping_stumble_candidates, str(self))
+            self._dispersy.statistics.total_candidates_discovered += 1
+            if len(candidate._timestamps) > 1:
+                self._dispersy.statistics.total_candidates_overlapped += 1
+                self._dispersy.statistics.dict_inc(self._dispersy.statistics.overlapping_stumble_candidates, str(self))
 
     def dispersy_cleanup_community(self, message):
         """
