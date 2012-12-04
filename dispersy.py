@@ -1539,7 +1539,7 @@ WHERE sync.meta_message = ? AND double_signed_sync.member1 = ? AND double_signed
         for other in others:
             # all except for the CANDIDATE
             if not other == candidate:
-                if __debug__: dprint("removing ", other, " in favor or ", candidate, force = 1)
+                if __debug__: dprint("removing ", other, " in favor of ", candidate, force = 1)
                 candidate.merge(other)
                 del self._candidates[other.sock_addr]
                 self.wan_address_unvote(other)
@@ -2232,6 +2232,7 @@ ORDER BY global_time, packet""", (meta.database_id, member_database_id)))
     def create_introduction_request(self, community, destination, allow_sync, forward=True):
         assert isinstance(destination, WalkCandidate), [type(destination), destination]
         self._statistics.walk_attempt += 1
+        
         cache = IntroductionRequestCache(community, destination)
         destination.walk(community, time(), cache.timeout_delay)
 
