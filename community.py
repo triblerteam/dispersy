@@ -359,9 +359,9 @@ class Community(object):
                     break
 
             for candidate in islice(self.dispersy_yield_random_candidates(), 1):
-                if __debug__: dprint(self._cid.encode("HEX"), " asking for master member from ", candidate)
-                self._dispersy.create_missing_identity(self, candidate, self._master_member, on_dispersy_identity)
-                break
+                if candidate != None:
+                    if __debug__: dprint(self._cid.encode("HEX"), " asking for master member from ", candidate)
+                    self._dispersy.create_missing_identity(self, candidate, self._master_member, on_dispersy_identity)
 
             yield delay
             delay = min(300.0, delay * 1.1)
@@ -1368,7 +1368,7 @@ class Community(object):
                 break
                     
     def _iter_a_or_b(self, a, b):
-        r = random()            
+        r = random()
         result = a.next() if r <= .5 else b.next()
         if not result:
             result = b.next() if r <= .5 else a.next()
