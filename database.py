@@ -47,9 +47,7 @@ class Database(Singleton):
             self._debug_thread_ident = thread.get_ident()
         self._file_path = file_path
 
-        self._connection = sqlite3.Connection(file_path)
-        # self._connection.setrollbackhook(self._on_rollback)
-        self._cursor = self._connection.cursor()
+        self._connect(file_path)
 
         # _commit_callbacks contains a list with functions that are called on each database commit
         self._commit_callbacks = []
@@ -112,9 +110,19 @@ class Database(Singleton):
         else:
             # the 'option' table probably hasn't been created yet
             version = u"0"
+            
+        self._init_database()
 
         self._database_version = self.check_database(version)
         assert isinstance(self._database_version, (int, long)), type(self._database_version)
+        
+    def _connect(self, file_path):
+        self._connection = sqlite3.Connection(file_path)
+        # self._connection.setrollbackhook(self._on_rollback)
+        self._cursor = self._connection.cursor()
+
+    def _init_database(self):
+        pass
 
     @property
     def database_version(self):
@@ -334,3 +342,91 @@ class Database(Singleton):
     def detach_commit_callback(self, func):
         assert func in self._commit_callbacks
         self._commit_callbacks.remove(func)
+        
+class APSWDatabase(Database):
+    def _connect(self, file_path):
+        import apsw
+        self._connection = apsw.Connection(file_path)
+        self._cursor = self._connection.cursor()
+
+    def _init_database(self):
+        self.execute("BEGIN")
+
+    def execute(self, statement, bindings=()):
+        import apsw
+        assert self._debug_thread_ident == thread.get_ident(), "Calling Database.execute on the wrong thread"
+        assert isinstance(statement, unicode), "The SQL statement must be given in unicode"
+        assert isinstance(bindings, (tuple, list, dict)), "The bindings must be a tuple, list, or dictionary"
+        assert all(lambda x: isinstance(x, str) for x in bindings), "The bindings may not contain a string. \nProvide unicode for TEXT and buffer(...) for BLOB. \nGiven types: %s" % str([type(binding) for binding in bindings])
+
+        try:
+            if __debug__: dprint(statement, " <-- ", bindings)
+            return self._cursor.execute(statement, bindings)
+
+        except apsw.Error:
+            if __debug__:
+                dprint(exception=True, level="warning")
+                dprint("Filename: ", self._file_path, level="warning")
+                dprint(statement, level="warning")
+                dprint(bindings, level="warning")
+            raise
+
+    def executescript(self, statements):
+        return self.execute(statements)
+
+    def executemany(self, statement, sequenceofbindings):
+        import apsw
+        assert self._debug_thread_ident == thread.get_ident(), "Calling Database.execute on the wrong thread"
+        if __debug__:
+            # we allow GeneratorType but must convert it to a list in __debug__ mode since a
+            # generator can only iterate once
+            from types import GeneratorType
+            if isinstance(sequenceofbindings, GeneratorType):
+                sequenceofbindings = list(sequenceofbindings)
+        assert isinstance(statement, unicode), "The SQL statement must be given in unicode"
+        assert isinstance(sequenceofbindings, (tuple, list)), "The sequenceofbindings must be a list with tuples, lists, or dictionaries"
+        assert all(isinstance(x, (tuple, list, dict)) for x in list(sequenceofbindings)), "The sequenceofbindings must be a list with tuples, lists, or dictionaries"
+        assert not filter(lambda x: filter(lambda y: isinstance(y, str), x), list(sequenceofbindings)), "The bindings may not contain a string. \nProvide unicode for TEXT and buffer(...) for BLOB."
+
+        try:
+            if __debug__: dprint(statement)
+            return self._cursor.executemany(statement, sequenceofbindings)
+
+        except apsw.Error:
+            if __debug__:
+                dprint(exception=True)
+                dprint("Filename: ", self._file_path)
+                dprint(statement)
+            raise
+
+    @property
+    def last_insert_rowid(self):
+        """
+        The row id of the most recent insert query.
+        @rtype: int or long
+        """
+        assert self._debug_thread_ident == thread.get_ident()
+        assert not self._cursor.lastrowid is None, "The last statement was NOT an insert query"
+        return self._connection.last_insert_rowid()
+
+    @property
+    def changes(self):
+        """
+        The number of changes that resulted from the most recent query.
+        @rtype: int or long
+        """
+        assert self._debug_thread_ident == thread.get_ident()
+        return self._connection.totalchanges()
+
+    def commit(self):
+        assert self._debug_thread_ident == thread.get_ident(), "Calling Database.commit on the wrong thread"
+
+        if __debug__: dprint("COMMIT")
+        result = self.execute("COMMIT;BEGIN")
+        for callback in self._commit_callbacks:
+            try:
+                callback()
+            except Exception:
+                if __debug__: dprint(exception=True, stack=True)
+        return result
+
