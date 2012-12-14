@@ -1342,7 +1342,7 @@ class Community(object):
                         
                     key_index += 1
                         
-                except IndexError:
+                except IndexError, ValueError:
                     break
                     
             if no_result:
