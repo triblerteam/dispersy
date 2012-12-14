@@ -359,7 +359,7 @@ class Community(object):
                     break
 
             for candidate in islice(self.dispersy_yield_random_candidates(), 1):
-                if candidate is not None:
+                if candidate:
                     if __debug__: dprint(self._cid.encode("HEX"), " asking for master member from ", candidate)
                     self._dispersy.create_missing_identity(self, candidate, self._master_member, on_dispersy_identity)
 
