@@ -1310,7 +1310,8 @@ class Community(object):
                         yield candidate
                         
                         keys = self._candidates.keys()
-                        key_index = keys.index(key_value)
+                        if key_value in keys:
+                            key_index = keys.index(key_value)
                         
                     key_index += 1
                         
@@ -1338,11 +1339,12 @@ class Community(object):
                         yield candidate
                         
                         keys = self._candidates.keys()
-                        key_index = keys.index(key_value)
+                        if key_value in keys:
+                            key_index = keys.index(key_value)
                         
                     key_index += 1
                         
-                except IndexError, ValueError:
+                except IndexError:
                     break
                     
             if no_result:
