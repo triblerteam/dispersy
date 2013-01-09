@@ -4399,6 +4399,12 @@ ORDER BY meta_message.priority DESC, sync.global_time * meta_message.direction""
                 self._database.commit()
                 break
 
+    def _commit_now(self):
+        """
+        Flush changes to disk.
+        """
+        self._database.commit()
+
     def _candidate_walker(self):
         """
         Periodically select a candidate and take a step in the network.
